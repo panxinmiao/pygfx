@@ -24,6 +24,7 @@ from ._volume import (
     VolumeRayMaterial,
     VolumeMipMaterial,
 )
+from ._text import TextMaterial
 from ._background import BackgroundMaterial, BackgroundImageMaterial
 
 

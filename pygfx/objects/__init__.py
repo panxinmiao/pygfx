@@ -11,5 +11,5 @@ from ._events import (
     WheelEvent,
     WindowEvent,
 )
-from ._more import Group, Scene, Background, Points, Line, Mesh, Image, Volume
+from ._more import Group, Scene, Background, Points, Line, Mesh, Image, Volume, Text
 from ._instanced import InstancedMesh

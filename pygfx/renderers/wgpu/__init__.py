@@ -8,4 +8,5 @@ from . import linerender
 from . import pointsrender
 from . import imagerender
 from . import volumerender
+from . import textrender
 from . import backgroundrender
