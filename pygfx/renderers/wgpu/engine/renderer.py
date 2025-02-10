@@ -200,6 +200,8 @@ class WgpuRenderer(RootEventHandler, Renderer):
         now = time.perf_counter()
         self._fps = {"start": now, "count": 0}
 
+        self._transmissive_blender = blender_module.Ordered2FragmentBlender()
+
         if enable_events:
             self.enable_events()
 
@@ -565,13 +567,15 @@ class WgpuRenderer(RootEventHandler, Renderer):
         # Collect all pipeline container objects
         # todo: can we get this into _get_flat_scene?
         compute_pipeline_containers = []
-        render_pipeline_containers = []
+        # render_pipeline_containers = []
         for wobject in flat.wobjects:
             if not wobject.material:
                 continue
+            # if getattr(wobject.material, "transmission", None):
+            #     # transmissive objects
             container_group = get_pipeline_container_group(wobject, renderstate)
             compute_pipeline_containers.extend(container_group.compute_containers)
-            render_pipeline_containers.extend(container_group.render_containers)
+            # render_pipeline_containers.extend(container_group.render_containers)
             # Enable pipelines to update data on the CPU. This usually includes
             # baking data into buffers. This is CPU intensive, but in practice
             # it is only used by a few materials.
@@ -582,25 +586,57 @@ class WgpuRenderer(RootEventHandler, Renderer):
         for resource in resource_update_registry.get_syncable_resources(flush=True):
             update_resource(resource)
 
+        self._transmissive_blender.ensure_target_size(self.physical_size)
+        self._shared.ensure_transmission_framebuffer_size(self.physical_size)
+
         # Command buffers cannot be reused. If we want some sort of re-use we should
         # look into render bundles. See https://github.com/gfx-rs/wgpu-native/issues/154
         # If we do get this to work, we should trigger a new recording
         # when the wobject's children, visible, render_order, or render_pass changes.
 
         # Record the rendering of all world objects, or re-use previous recording
-        command_buffers = []
-        command_buffers += self._render_recording(
+
+        command_encoder = self._device.create_command_encoder()
+        self._render_recording(
             renderstate,
             flat.wobjects,
             compute_pipeline_containers,
-            render_pipeline_containers,
+            # render_pipeline_containers,
             physical_viewport,
             clear_color,
+            command_encoder,
         )
-        command_buffers += self._blender.perform_combine_pass()
 
         # Collect commands and submit
-        self._device.queue.submit(command_buffers)
+        self._device.queue.submit([command_encoder.finish()])
+
+        ############# debug transmissive pass ###########
+
+        # texture = self._transmissive_blender.color_tex
+        # size = texture.size
+        # bytes_per_pixel = 4
+
+        # data = self._device.queue.read_texture(
+        #     {
+        #         "texture": texture,
+        #         "mip_level": 0,
+        #         "origin": (0, 0, 0),
+        #     },
+        #     {
+        #         "offset": 0,
+        #         "bytes_per_row": bytes_per_pixel * size[0],
+        #         "rows_per_image": size[1],
+        #     },
+        #     size,
+        # )
+
+        # ary = np.frombuffer(data, np.uint8).reshape(size[1], size[0], 4)
+
+        # import cv2
+        # cv2.imshow("image", cv2.cvtColor(ary, cv2.COLOR_RGBA2BGRA))
+        # cv2.waitKey(1)
+
+        ############# debug transmissive pass ###########
 
         if flush:
             self.flush()
@@ -664,9 +700,9 @@ class WgpuRenderer(RootEventHandler, Renderer):
         renderstate,
         wobject_list,
         compute_pipeline_containers,
-        render_pipeline_containers,
         physical_viewport,
         clear_color,
+        command_encoder,
     ):
         # You might think that this is slow for large number of world
         # object. But it is actually pretty good. It does iterate over
@@ -674,12 +710,13 @@ class WgpuRenderer(RootEventHandler, Renderer):
         # it, really.
         # todo: we may be able to speed this up with render bundles though
 
-        command_encoder = self._device.create_command_encoder()
         blender = self._blender
         if clear_color:
             blender.clear()
+            self._transmissive_blender.clear()
         else:
             blender.clear_depth()
+            self._transmissive_blender.clear_depth()
 
         # ----- compute pipelines
 
@@ -700,6 +737,21 @@ class WgpuRenderer(RootEventHandler, Renderer):
         )
         render_shadow_maps(lights, wobject_list, command_encoder)
 
+        # --- render transmissive pass
+        # todo: only do this if there are transmissive objects
+        self._render_transmissive_pass(
+            wobject_list, renderstate, physical_viewport, command_encoder
+        )
+
+        # --- render objects
+        self._render_objects(
+            wobject_list, renderstate, physical_viewport, command_encoder
+        )
+
+    def _render_objects(
+        self, wobjects, renderstate, physical_viewport, command_encoder
+    ):
+        blender = renderstate.blender
         for pass_index in range(blender.get_pass_count()):
             color_attachments = blender.get_color_attachments(pass_index)
             depth_attachment = blender.get_depth_attachment(pass_index)
@@ -714,14 +766,82 @@ class WgpuRenderer(RootEventHandler, Renderer):
             )
             render_pass.set_viewport(*physical_viewport)
 
-            for render_pipeline_container in render_pipeline_containers:
-                render_pipeline_container.draw(
-                    render_pass, renderstate, pass_index, render_mask
-                )
+            for wobject in wobjects:
+                if not wobject.material:
+                    continue
+
+                container_group = get_pipeline_container_group(wobject, renderstate)
+                for render_pipeline_container in container_group.render_containers:
+                    render_pipeline_container.draw(
+                        render_pass, renderstate, pass_index, render_mask
+                    )
+            render_pass.end()
+
+        blender.perform_combine_pass(command_encoder)
+
+    def _render_transmissive_pass(
+        self, wobjects, renderstate, physical_viewport, command_encoder
+    ):
+        current_blender = renderstate.blender
+
+        blender = self._transmissive_blender
+        renderstate.blender = blender
+
+        for pass_index in range(blender.get_pass_count()):
+            color_attachments = blender.get_color_attachments(pass_index)
+            depth_attachment = blender.get_depth_attachment(pass_index)
+            render_mask = blender.passes[pass_index].render_mask
+            if not color_attachments:
+                continue
+
+            render_pass = command_encoder.begin_render_pass(
+                color_attachments=color_attachments,
+                depth_stencil_attachment=depth_attachment,
+                occlusion_query_set=None,
+            )
+            render_pass.set_viewport(*physical_viewport)
+
+            for wobject in wobjects:
+                if not wobject.material:
+                    continue
+
+                transmission = getattr(wobject.material, "transmission", None)
+
+                if transmission:  # trnasmissive objects
+                    side = wobject.material.side
+                    if side == "both":
+                        # if both sides are transmissive, we need to render the back side
+                        wobject.material.side = "back"
+                    else:
+                        # skip single side transmissive objects
+                        continue
+
+                container_group = get_pipeline_container_group(wobject, renderstate)
+                for render_pipeline_container in container_group.render_containers:
+                    render_pipeline_container.draw(
+                        render_pass, renderstate, pass_index, render_mask
+                    )
+
+                if transmission:
+                    wobject.material.side = side
 
             render_pass.end()
 
-        return [command_encoder.finish()]
+        blender.perform_combine_pass(command_encoder)
+
+        command_encoder.copy_texture_to_texture(
+            {
+                "texture": blender.color_tex,
+                "origin": (0, 0, 0),
+            },
+            {
+                "texture": ensure_wgpu_object(self._shared.transmission_framebuffer),
+            },
+            copy_size=self.physical_size,
+        )
+
+        generate_texture_mipmaps(self._shared.transmission_framebuffer, command_encoder)
+        renderstate.blender = current_blender
 
     def _update_stdinfo_buffer(
         self, camera: Camera, physical_size, logical_size, ndc_offset
