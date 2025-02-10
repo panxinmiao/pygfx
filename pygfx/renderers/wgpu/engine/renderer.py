@@ -200,8 +200,6 @@ class WgpuRenderer(RootEventHandler, Renderer):
         now = time.perf_counter()
         self._fps = {"start": now, "count": 0}
 
-        self._transmissive_blender = blender_module.Ordered2FragmentBlender()
-
         if enable_events:
             self.enable_events()
 
@@ -371,6 +369,7 @@ class WgpuRenderer(RootEventHandler, Renderer):
         # Set blender object
         self._blend_mode = value
         self._blender = blender()
+        self._transmissive_blender = blender()
         # If our target is a canvas, request a new draw
         if isinstance(self._target, AnyBaseCanvas):
             self._target.request_draw()
