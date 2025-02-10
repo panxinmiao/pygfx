@@ -118,7 +118,7 @@ class OpaquePass(BasePass):
             {
                 "view": blender.color_view,
                 "resolve_target": None,
-                "clear_value": (0, 0, 0, 1),
+                "clear_value": (0, 0, 0, 0),
                 "load_op": color_load_op,
                 "store_op": wgpu.StoreOp.store,
             },

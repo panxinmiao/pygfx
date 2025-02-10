@@ -788,6 +788,7 @@ class WgpuRenderer(RootEventHandler, Renderer):
 
         for pass_index in range(blender.get_pass_count()):
             color_attachments = blender.get_color_attachments(pass_index)
+            color_attachments[0]["clear_value"] = (0, 0, 0, 1)
             depth_attachment = blender.get_depth_attachment(pass_index)
             render_mask = blender.passes[pass_index].render_mask
             if not color_attachments:
