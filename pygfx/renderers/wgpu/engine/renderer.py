@@ -48,14 +48,26 @@ from .utils import GfxTextureView
 AnyBaseCanvas = BaseRenderCanvas, WgpuCanvasBase
 
 
-def _get_sort_function(camera: Camera):
+def _get_sort_function(camera: Camera, z=None):
     """Given a scene object, get a function to sort wobject-tuples"""
 
     def sort_func(wobject: WorldObject):
+        return wobject.render_order
+
+    def sort_func_z(wobject: WorldObject):
         z = la.vec_transform(wobject.world.position, camera.camera_matrix)[2]
         return wobject.render_order, z
 
-    return sort_func
+    def sort_func_z_inv(wobject: WorldObject):
+        z = la.vec_transform(wobject.world.position, camera.camera_matrix)[2]
+        return wobject.render_order, -z
+
+    if z is None:
+        return sort_func
+    elif z == "+":
+        return sort_func_z
+    elif z == "-":
+        return sort_func_z_inv
 
 
 class WgpuRenderer(RootEventHandler, Renderer):
@@ -369,7 +381,7 @@ class WgpuRenderer(RootEventHandler, Renderer):
         # Set blender object
         self._blend_mode = value
         self._blender = blender()
-        self._transmissive_blender = blender()
+        # self._transmissive_blender = blender()
         # If our target is a canvas, request a new draw
         if isinstance(self._target, AnyBaseCanvas):
             self._target.request_draw()
@@ -411,7 +423,12 @@ class WgpuRenderer(RootEventHandler, Renderer):
 
         class Flat:
             def __init__(self):
-                self.wobjects = []
+                self.wobjects = {
+                    "opaque": [],
+                    "transparent": [],
+                    "transmissive": [],
+                    "front": [],
+                }
                 self.lights = {
                     "point_lights": [],
                     "directional_lights": [],
@@ -422,9 +439,6 @@ class WgpuRenderer(RootEventHandler, Renderer):
         flat = Flat()
 
         def visit_wobject(ob):
-            # Add to semi-flat data structure
-            wobject_dict.setdefault(ob.render_order, []).append(ob)
-
             # Update things like transform and uniform buffers
             ob._update_object()
 
@@ -441,21 +455,43 @@ class WgpuRenderer(RootEventHandler, Renderer):
                     ambient_color[0] += r * ob.intensity
                     ambient_color[1] += g * ob.intensity
                     ambient_color[2] += b * ob.intensity
+            else:
+                # Add to semi-flat data structure
+                # wobject_dict.setdefault(ob.render_order, []).append(ob)
+                if ob.material:
+                    from ....helpers import Stats
 
-        # Flatten the scenegraph, categorised by render_order
-        wobject_dict = {}
+                    if isinstance(ob.parent, Stats):  # special case for Stats
+                        flat.wobjects["front"].append(ob)
+                    elif getattr(ob.material, "transmission", None):
+                        flat.wobjects["transmissive"].append(ob)
+                    elif ob.material.is_transparent:
+                        flat.wobjects["transparent"].append(ob)
+                    else:
+                        flat.wobjects["opaque"].append(ob)
+
+        # # Flatten the scenegraph, categorised by render_order
+        # wobject_dict = {}
         scene.traverse(visit_wobject, True)
 
         # Produce a sorted list of world objects
         if self._sort_objects:
-            depth_sort_func = _get_sort_function(camera)
-            for render_order in sorted(wobject_dict.keys()):
-                wobjects = wobject_dict[render_order]
-                wobjects.sort(key=depth_sort_func)
-                flat.wobjects.extend(wobjects)
+            depth_sort_func = _get_sort_function(camera, z="+")
+            inverse_depth_sort_func = _get_sort_function(camera, z="-")
+            flat.wobjects["opaque"].sort(key=depth_sort_func)
+            flat.wobjects["transparent"].sort(key=inverse_depth_sort_func)
+            flat.wobjects["transmissive"].sort(key=inverse_depth_sort_func)
+            # for render_order in sorted(wobject_dict.keys()):
+            #     wobjects = wobject_dict[render_order]
+            #     wobjects.sort(key=depth_sort_func)
+            #     flat.wobjects.extend(wobjects)
         else:
-            for render_order in sorted(wobject_dict.keys()):
-                flat.wobjects.extend(wobject_dict[render_order])
+            # for render_order in sorted(wobject_dict.keys()):
+            #     flat.wobjects.extend(wobject_dict[render_order])
+            depth_sort_func = _get_sort_function(camera)
+            flat.wobjects["opaque"].sort(key=depth_sort_func)
+            flat.wobjects["transparent"].sort(key=depth_sort_func)
+            flat.wobjects["transmissive"].sort(key=depth_sort_func)
 
         return flat
 
@@ -563,13 +599,18 @@ class WgpuRenderer(RootEventHandler, Renderer):
         renderstate = get_renderstate(flat.lights, self._blender)
         self._renderstates_per_flush[0].append(renderstate)
 
+        # self._transmissive_blender.ensure_target_size(self.physical_size)
+        self._shared.ensure_transmission_framebuffer_size(self.physical_size)
+
         # Collect all pipeline container objects
         # todo: can we get this into _get_flat_scene?
         compute_pipeline_containers = []
-        # render_pipeline_containers = []
-        for wobject in flat.wobjects:
-            if not wobject.material:
-                continue
+
+        opaque_objects = flat.wobjects["opaque"]
+        transparent_objects = flat.wobjects["transparent"]
+        transmissive_objects = flat.wobjects["transmissive"]
+
+        for wobject in opaque_objects + transparent_objects + transmissive_objects:
             # if getattr(wobject.material, "transmission", None):
             #     # transmissive objects
             container_group = get_pipeline_container_group(wobject, renderstate)
@@ -584,9 +625,6 @@ class WgpuRenderer(RootEventHandler, Renderer):
         # Update *all* buffers and textures that have changed
         for resource in resource_update_registry.get_syncable_resources(flush=True):
             update_resource(resource)
-
-        self._transmissive_blender.ensure_target_size(self.physical_size)
-        self._shared.ensure_transmission_framebuffer_size(self.physical_size)
 
         # Command buffers cannot be reused. If we want some sort of re-use we should
         # look into render bundles. See https://github.com/gfx-rs/wgpu-native/issues/154
@@ -608,34 +646,6 @@ class WgpuRenderer(RootEventHandler, Renderer):
 
         # Collect commands and submit
         self._device.queue.submit([command_encoder.finish()])
-
-        ############# debug transmissive pass ###########
-
-        # texture = self._transmissive_blender.color_tex
-        # size = texture.size
-        # bytes_per_pixel = 4
-
-        # data = self._device.queue.read_texture(
-        #     {
-        #         "texture": texture,
-        #         "mip_level": 0,
-        #         "origin": (0, 0, 0),
-        #     },
-        #     {
-        #         "offset": 0,
-        #         "bytes_per_row": bytes_per_pixel * size[0],
-        #         "rows_per_image": size[1],
-        #     },
-        #     size,
-        # )
-
-        # ary = np.frombuffer(data, np.uint8).reshape(size[1], size[0], 4)
-
-        # import cv2
-        # cv2.imshow("image", cv2.cvtColor(ary, cv2.COLOR_RGBA2BGRA))
-        # cv2.waitKey(1)
-
-        ############# debug transmissive pass ###########
 
         if flush:
             self.flush()
@@ -697,7 +707,7 @@ class WgpuRenderer(RootEventHandler, Renderer):
     def _render_recording(
         self,
         renderstate,
-        wobject_list,
+        wobjects,
         compute_pipeline_containers,
         physical_viewport,
         clear_color,
@@ -712,10 +722,8 @@ class WgpuRenderer(RootEventHandler, Renderer):
         blender = self._blender
         if clear_color:
             blender.clear()
-            self._transmissive_blender.clear()
         else:
             blender.clear_depth()
-            self._transmissive_blender.clear_depth()
 
         # ----- compute pipelines
 
@@ -734,18 +742,42 @@ class WgpuRenderer(RootEventHandler, Renderer):
             + renderstate.lights["spot_lights"]
             + renderstate.lights["directional_lights"]
         )
-        render_shadow_maps(lights, wobject_list, command_encoder)
 
-        # --- render transmissive pass
-        # todo: only do this if there are transmissive objects
-        self._render_transmissive_pass(
-            wobject_list, renderstate, physical_viewport, command_encoder
+        opaque_objects = wobjects["opaque"]
+        transparent_objects = wobjects["transparent"]
+        transmissive_objects = wobjects["transmissive"]
+        fronts = wobjects["front"]
+
+        # todo: only opaque objects should cast shadows?
+        render_shadow_maps(
+            lights,
+            (opaque_objects + transparent_objects + transmissive_objects),
+            command_encoder,
         )
 
-        # --- render objects
-        self._render_objects(
-            wobject_list, renderstate, physical_viewport, command_encoder
-        )
+        # --- render opaque objects
+        if opaque_objects:
+            self._render_objects(
+                opaque_objects, renderstate, physical_viewport, command_encoder
+            )
+
+        # --- render transmissive objects
+        if transmissive_objects:
+            self._render_transmissive_objects(
+                transmissive_objects, renderstate, physical_viewport, command_encoder
+            )
+
+        # --- render transparent objects
+        if transparent_objects:
+            self._render_objects(
+                transparent_objects, renderstate, physical_viewport, command_encoder
+            )
+
+        # draw front objects last
+        if fronts:
+            self._render_objects(
+                fronts, renderstate, physical_viewport, command_encoder
+            )
 
     def _render_objects(
         self, wobjects, renderstate, physical_viewport, command_encoder
@@ -778,60 +810,12 @@ class WgpuRenderer(RootEventHandler, Renderer):
 
         blender.perform_combine_pass(command_encoder)
 
-    def _render_transmissive_pass(
-        self, wobjects, renderstate, physical_viewport, command_encoder
+    def _render_transmissive_objects(
+        self, transmissive_objects, renderstate, physical_viewport, command_encoder
     ):
-        current_blender = renderstate.blender
-
-        blender = self._transmissive_blender
-        renderstate.blender = blender
-
-        for pass_index in range(blender.get_pass_count()):
-            color_attachments = blender.get_color_attachments(pass_index)
-            color_attachments[0]["clear_value"] = (0, 0, 0, 1)
-            depth_attachment = blender.get_depth_attachment(pass_index)
-            render_mask = blender.passes[pass_index].render_mask
-            if not color_attachments:
-                continue
-
-            render_pass = command_encoder.begin_render_pass(
-                color_attachments=color_attachments,
-                depth_stencil_attachment=depth_attachment,
-                occlusion_query_set=None,
-            )
-            render_pass.set_viewport(*physical_viewport)
-
-            for wobject in wobjects:
-                if not wobject.material:
-                    continue
-
-                transmission = getattr(wobject.material, "transmission", None)
-
-                if transmission:  # trnasmissive objects
-                    side = wobject.material.side
-                    if side == "both":
-                        # if both sides are transmissive, we need to render the back side
-                        wobject.material.side = "back"
-                    else:
-                        # skip single side transmissive objects
-                        continue
-
-                container_group = get_pipeline_container_group(wobject, renderstate)
-                for render_pipeline_container in container_group.render_containers:
-                    render_pipeline_container.draw(
-                        render_pass, renderstate, pass_index, render_mask
-                    )
-
-                if transmission:
-                    wobject.material.side = side
-
-            render_pass.end()
-
-        blender.perform_combine_pass(command_encoder)
-
         command_encoder.copy_texture_to_texture(
             {
-                "texture": blender.color_tex,
+                "texture": renderstate.blender.color_tex,
                 "origin": (0, 0, 0),
             },
             {
@@ -839,9 +823,75 @@ class WgpuRenderer(RootEventHandler, Renderer):
             },
             copy_size=self.physical_size,
         )
-
         generate_texture_mipmaps(self._shared.transmission_framebuffer, command_encoder)
-        renderstate.blender = current_blender
+
+        double_sided_objects = []
+        for wobject in transmissive_objects:
+            if wobject.material.side == "both":
+                double_sided_objects.append(wobject)
+                wobject.material.side = "back"
+
+        if double_sided_objects:
+            # draw back side of double sided objects
+            self._render_objects(
+                double_sided_objects, renderstate, physical_viewport, command_encoder
+            )
+            command_encoder.copy_texture_to_texture(
+                {
+                    "texture": renderstate.blender.color_tex,
+                    "origin": (0, 0, 0),
+                },
+                {
+                    "texture": ensure_wgpu_object(
+                        self._shared.transmission_framebuffer
+                    ),
+                },
+                copy_size=self.physical_size,
+            )
+            generate_texture_mipmaps(
+                self._shared.transmission_framebuffer, command_encoder
+            )
+
+            for wobject in double_sided_objects:
+                wobject.material.side = "front"
+
+        # draw front side of double sided objects and other single sided transmissive objects
+        self._render_objects(
+            transmissive_objects, renderstate, physical_viewport, command_encoder
+        )
+
+        # restore side property
+        for wobject in double_sided_objects:
+            wobject.material.side = "both"
+
+        ############# debug transmissive pass ###########
+
+        # texture = self._shared.transmission_framebuffer._wgpu_object
+        # size = texture.size
+        # bytes_per_pixel = 4
+
+        # data = self._device.queue.read_texture(
+        #     {
+        #         "texture": texture,
+        #         "mip_level": 0,
+        #         "origin": (0, 0, 0),
+        #     },
+        #     {
+        #         "offset": 0,
+        #         "bytes_per_row": bytes_per_pixel * size[0],
+        #         "rows_per_image": size[1],
+        #     },
+        #     size,
+        # )
+
+        # ary = np.frombuffer(data, np.uint8).reshape(size[1], size[0], 4)
+
+        # import cv2
+        # ary = cv2.resize(ary, (1280, 720))
+        # cv2.imshow("image", cv2.cvtColor(ary, cv2.COLOR_RGBA2BGRA))
+        # cv2.waitKey(1)
+
+        ############# debug transmissive pass ###########
 
     def _update_stdinfo_buffer(
         self, camera: Camera, physical_size, logical_size, ndc_offset
