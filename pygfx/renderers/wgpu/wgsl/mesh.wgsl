@@ -17,6 +17,9 @@ $$ elif lighting == 'toon'
     {$ include 'pygfx.light_toon.wgsl' $}
 $$ endif
 
+$$ if USE_IRIDESCENCE is defined
+    {$ include 'pygfx.iridescence.wgsl' $}
+$$ endif
 $$ if USE_TRANSMISSION is defined
     {$ include 'pygfx.transmission.wgsl' $}
 $$ endif

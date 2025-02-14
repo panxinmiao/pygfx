@@ -665,6 +665,28 @@ class MeshPhysicalShader(MeshStandardShader):
                 )
                 self["use_clearcoat_normal_map"] = True
 
+        # iridescence
+        if material.iridescence:
+            self["USE_IRIDESCENCE"] = True
+
+            if material.iridescence_map is not None:
+                bindings.extend(
+                    self._define_texture_map(
+                        geometry, material.iridescence_map, "iridescence_map"
+                    )
+                )
+                self["use_iridescence_map"] = True
+
+            if material.iridescence_thickness_map is not None:
+                bindings.extend(
+                    self._define_texture_map(
+                        geometry,
+                        material.iridescence_thickness_map,
+                        "iridescence_thickness_map",
+                    )
+                )
+                self["use_iridescence_thickness_map"] = True
+
         # transmission
         if material.transmission:
             self["USE_TRANSMISSION"] = True
