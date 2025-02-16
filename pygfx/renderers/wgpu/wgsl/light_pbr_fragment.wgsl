@@ -16,7 +16,7 @@ var material: PhysicalMaterial;
 
 material.diffuse_color = physical_albeido * ( 1.0 - metalness_factor );
 
-let dxy = max( abs( dpdx( surface_normal ) ), abs( dpdy( surface_normal ) ) );
+let dxy = max( abs( dpdx( normal ) ), abs( dpdy( normal ) ) );
 let geometry_roughness = max( max( dxy.x, dxy.y ), dxy.z );
 
 material.roughness = max( roughness_factor, 0.0525 );

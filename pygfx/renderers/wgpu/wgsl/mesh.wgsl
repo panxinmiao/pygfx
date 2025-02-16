@@ -508,16 +508,13 @@ fn fs_main(varyings: Varyings, @builtin(front_facing) is_front: bool) -> Fragmen
     var total_specular = reflected_light.direct_specular + reflected_light.indirect_specular;
 
     $$ if USE_TRANSMISSION is defined
-        let pos = varyings.world_pos;
-        let v = normalize(u_stdinfo.cam_transform_inv[3].xyz - pos);
-        let n = surface_normal;
         let model_matrix = u_wobject.world_transform;
         let view_matrix = u_stdinfo.cam_transform;
         let projection_matrix = u_stdinfo.projection_transform;
 
         let transmitted = getIBLVolumeRefraction(
-            n, v, material.roughness, material.diffuse_color, material.specular_color, material.specular_f90,
-            pos, model_matrix, view_matrix, projection_matrix, material.dispersion, material.ior, material.thickness,
+            normal, view, material.roughness, material.diffuse_color, material.specular_color, material.specular_f90,
+            varyings.world_pos, model_matrix, view_matrix, projection_matrix, material.dispersion, material.ior, material.thickness,
             material.attenuation_color, material.attenuation_distance );
 
         material.transmission_alpha = mix( material.transmission_alpha, transmitted.a, material.transmission );
