@@ -610,7 +610,8 @@ class WgpuRenderer(RootEventHandler, Renderer):
         transparent_objects = flat.wobjects["transparent"]
         transmissive_objects = flat.wobjects["transmissive"]
 
-        for wobject in opaque_objects + transparent_objects + transmissive_objects:
+        for wobjects in [opaque_objects, transparent_objects, transmissive_objects]:
+            for wobject in wobjects:
             # if getattr(wobject.material, "transmission", None):
             #     # transmissive objects
             container_group = get_pipeline_container_group(wobject, renderstate)
