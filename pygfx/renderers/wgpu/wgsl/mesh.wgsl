@@ -360,6 +360,10 @@ fn fs_main(varyings: Varyings, @builtin(front_facing) is_front: bool) -> Fragmen
     $$ endif
     var opacity = color_value.a * u_material.opacity;
 
+    $$ if USE_ALPHA_TEST is defined
+        if (opacity < u_material.alpha_test) { discard; }
+    $$ endif
+
     // Get normal used to calculate lighting or reflection
     $$ if lighting or use_env_map is defined
         // Get view direction
@@ -570,9 +574,14 @@ fn fs_main(varyings: Varyings, @builtin(front_facing) is_front: bool) -> Fragmen
         }
     $$ endif
 
-    $$ if USE_TRANSMISSION is defined
-        opacity = material.transmission_alpha;
+    $$ if OPAQUE is defined
+        opacity = 1.0;
     $$ endif
+
+    $$ if USE_TRANSMISSION is defined
+        opacity *= material.transmission_alpha;
+    $$ endif
+
 
     let out_color = vec4<f32>(physical_color, opacity);
 

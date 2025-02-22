@@ -10,6 +10,7 @@ from warnings import warn
 import numpy as np
 import wgpu
 import pylinalg as la
+from operator import attrgetter
 from rendercanvas import BaseRenderCanvas
 from wgpu.gui import WgpuCanvasBase
 
@@ -51,9 +52,9 @@ AnyBaseCanvas = BaseRenderCanvas, WgpuCanvasBase
 def _get_sort_function(camera: Camera, z=None):
     """Given a scene object, get a function to sort wobject-tuples"""
 
-    def sort_func(wobject: WorldObject):
-        return wobject.render_order
+    sort_func = attrgetter("render_order")
 
+    # todo: we should use the bounding-sphere center to get a more accurate z.
     def sort_func_z(wobject: WorldObject):
         z = la.vec_transform(wobject.world.position, camera.camera_matrix)[2]
         return wobject.render_order, z
@@ -438,6 +439,8 @@ class WgpuRenderer(RootEventHandler, Renderer):
 
         flat = Flat()
 
+        from ....helpers import Stats
+
         def visit_wobject(ob):
             # Update things like transform and uniform buffers
             ob._update_object()
@@ -459,13 +462,11 @@ class WgpuRenderer(RootEventHandler, Renderer):
                 # Add to semi-flat data structure
                 # wobject_dict.setdefault(ob.render_order, []).append(ob)
                 if ob.material:
-                    from ....helpers import Stats
-
                     if isinstance(ob.parent, Stats):  # special case for Stats
                         flat.wobjects["front"].append(ob)
                     elif getattr(ob.material, "transmission", None):
                         flat.wobjects["transmissive"].append(ob)
-                    elif ob.material.is_transparent:
+                    elif ob.material.transparent:
                         flat.wobjects["transparent"].append(ob)
                     else:
                         flat.wobjects["opaque"].append(ob)
@@ -481,18 +482,11 @@ class WgpuRenderer(RootEventHandler, Renderer):
             flat.wobjects["opaque"].sort(key=depth_sort_func)
             flat.wobjects["transparent"].sort(key=inverse_depth_sort_func)
             flat.wobjects["transmissive"].sort(key=inverse_depth_sort_func)
-            # for render_order in sorted(wobject_dict.keys()):
-            #     wobjects = wobject_dict[render_order]
-            #     wobjects.sort(key=depth_sort_func)
-            #     flat.wobjects.extend(wobjects)
         else:
-            # for render_order in sorted(wobject_dict.keys()):
-            #     flat.wobjects.extend(wobject_dict[render_order])
-            depth_sort_func = _get_sort_function(camera)
-            flat.wobjects["opaque"].sort(key=depth_sort_func)
-            flat.wobjects["transparent"].sort(key=depth_sort_func)
-            flat.wobjects["transmissive"].sort(key=depth_sort_func)
-
+            render_order_sort_func = _get_sort_function(camera)
+            flat.wobjects["opaque"].sort(key=render_order_sort_func)
+            flat.wobjects["transparent"].sort(key=render_order_sort_func)
+            flat.wobjects["transmissive"].sort(key=render_order_sort_func)
         return flat
 
     def render(
@@ -612,11 +606,8 @@ class WgpuRenderer(RootEventHandler, Renderer):
 
         for wobjects in [opaque_objects, transparent_objects, transmissive_objects]:
             for wobject in wobjects:
-                # if getattr(wobject.material, "transmission", None):
-                #     # transmissive objects
                 container_group = get_pipeline_container_group(wobject, renderstate)
                 compute_pipeline_containers.extend(container_group.compute_containers)
-                # render_pipeline_containers.extend(container_group.render_containers)
                 # Enable pipelines to update data on the CPU. This usually includes
                 # baking data into buffers. This is CPU intensive, but in practice
                 # it is only used by a few materials.
@@ -633,13 +624,11 @@ class WgpuRenderer(RootEventHandler, Renderer):
         # when the wobject's children, visible, render_order, or render_pass changes.
 
         # Record the rendering of all world objects, or re-use previous recording
-
         command_encoder = self._device.create_command_encoder()
         self._render_recording(
             renderstate,
             flat.wobjects,
             compute_pipeline_containers,
-            # render_pipeline_containers,
             physical_viewport,
             clear_color,
             command_encoder,

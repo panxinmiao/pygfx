@@ -93,6 +93,7 @@ class AffineBase:
         "_scaling_signs",
         "_scaling_signs_view",
         "cache__decomposed_cache",
+        "cache__decomposed_position_cache",
         "cache__directions_cache",
         "cache__euler_cache",
         "cache__inverse_matrix_cache",
@@ -148,6 +149,12 @@ class AffineBase:
         return self._scaling_signs_view
 
     @cached
+    def _decomposed_position(self) -> np.ndarray:
+        position = la.mat_decompose_translation(self.matrix)
+        position.flags.writeable = False
+        return position
+
+    @cached
     def _decomposed(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         try:
             decomposed = la.mat_decompose(self.matrix, scaling_signs=self.scaling_signs)
@@ -200,7 +207,7 @@ class AffineBase:
     @property
     def position(self) -> np.ndarray:
         """The origin of source."""
-        return self._decomposed[0]
+        return self._decomposed_position
 
     @property
     def rotation(self) -> np.ndarray:
@@ -314,6 +321,16 @@ class AffineBase:
     def scale(self, value):
         m = la.mat_compose(self.position, self.rotation, value)
         np.sign(value, out=self._scaling_signs)
+        self.matrix = m
+
+    @property
+    def components(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        return self._decomposed
+
+    @components.setter
+    def components(self, value: Tuple[np.ndarray, np.ndarray, np.ndarray]):
+        m = la.mat_compose(*value)
+        np.sign(value[2], out=self._scaling_signs)
         self.matrix = m
 
     @x.setter
@@ -556,6 +573,26 @@ class AffineTransform(AffineBase):
             self._rotation[:] = self.rotation
             self._scale[:] = self.scale
         self._state_basis = value
+        self.flag_update()
+
+    @property
+    def components(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        if self.state_basis == "components":
+            return (self._position_view, self._rotation_view, self._scale_view)
+        return super().components
+
+    @components.setter
+    def components(self, value: Tuple[np.ndarray, np.ndarray, np.ndarray]):
+        if self.state_basis == "components":
+            if (pos := value[0]) is not None:
+                self._position[:] = pos
+            if (rot := value[1]) is not None:
+                self._rotation[:] = rot
+            if (sca := value[2]) is not None:
+                self._scale[:] = sca
+        else:
+            la.mat_compose(*value, out=self._matrix)
+            np.sign(value[2], out=self._scaling_signs)
         self.flag_update()
 
     @property

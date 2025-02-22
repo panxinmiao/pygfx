@@ -234,7 +234,7 @@ class SimpleSinglePass(OpaquePass):
                 "format": blender.color_format,
                 "blend": {
                     "alpha": blend_dict(bf.one, bf.one_minus_src_alpha, bo.add),
-                    "color": blend_dict(bf.one, bf.one_minus_src_alpha, bo.add),
+                    "color": blend_dict(bf.src_alpha, bf.one_minus_src_alpha, bo.add),
                 },
                 "write_mask": wgpu.ColorWrite.ALL,
             },
@@ -254,7 +254,7 @@ class SimpleSinglePass(OpaquePass):
         };
         fn get_fragment_output(position: vec4<f32>, color: vec4<f32>) -> FragmentOutput {
             var out : FragmentOutput;
-            out.color = vec4<f32>(color.rgb * color.a, color.a);
+            out.color = vec4<f32>(color.rgb, color.a);
             return out;
         }
         """
@@ -624,10 +624,11 @@ class BaseFragmentBlender:
     def get_color_attachments(self, pass_index):
         return self.passes[pass_index].get_color_attachments(self)
 
-    def get_depth_descriptor(self, pass_index, depth_test=True):
+    def get_depth_descriptor(self, pass_index, depth_test=True, depth_write=True):
         des = self.passes[pass_index].get_depth_descriptor(self)
         if not depth_test:
             des["depth_compare"] = wgpu.CompareFunction.always
+        if not depth_write:
             des["depth_write_enabled"] = False
         return {
             **des,
