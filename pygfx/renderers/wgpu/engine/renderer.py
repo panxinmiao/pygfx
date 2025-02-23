@@ -815,35 +815,35 @@ class WgpuRenderer(RootEventHandler, Renderer):
         )
         generate_texture_mipmaps(self._shared.transmission_framebuffer, command_encoder)
 
-        double_sided_objects = []
-        for wobject in transmissive_objects:
-            if wobject.material.side == "both":
-                double_sided_objects.append(wobject)
-                wobject.material.side = "back"
+        # double_sided_objects = []
+        # for wobject in transmissive_objects:
+        #     if wobject.material.side == "both":
+        #         double_sided_objects.append(wobject)
+        #         wobject.material.side = "back"
 
-        if double_sided_objects:
-            # draw back side of double sided objects
-            self._render_objects(
-                double_sided_objects, renderstate, physical_viewport, command_encoder
-            )
-            command_encoder.copy_texture_to_texture(
-                {
-                    "texture": renderstate.blender.color_tex,
-                    "origin": (0, 0, 0),
-                },
-                {
-                    "texture": ensure_wgpu_object(
-                        self._shared.transmission_framebuffer
-                    ),
-                },
-                copy_size=self.physical_size,
-            )
-            generate_texture_mipmaps(
-                self._shared.transmission_framebuffer, command_encoder
-            )
+        # if double_sided_objects:
+        #     # draw back side of double sided objects
+        #     self._render_objects(
+        #         double_sided_objects, renderstate, physical_viewport, command_encoder
+        #     )
+        #     command_encoder.copy_texture_to_texture(
+        #         {
+        #             "texture": renderstate.blender.color_tex,
+        #             "origin": (0, 0, 0),
+        #         },
+        #         {
+        #             "texture": ensure_wgpu_object(
+        #                 self._shared.transmission_framebuffer
+        #             ),
+        #         },
+        #         copy_size=self.physical_size,
+        #     )
+        #     generate_texture_mipmaps(
+        #         self._shared.transmission_framebuffer, command_encoder
+        #     )
 
-            for wobject in double_sided_objects:
-                wobject.material.side = "front"
+        #     for wobject in double_sided_objects:
+        #         wobject.material.side = "front"
 
         # draw front side of double sided objects and other single sided transmissive objects
         self._render_objects(
@@ -851,8 +851,8 @@ class WgpuRenderer(RootEventHandler, Renderer):
         )
 
         # restore side property
-        for wobject in double_sided_objects:
-            wobject.material.side = "both"
+        # for wobject in double_sided_objects:
+        #     wobject.material.side = "both"
 
         ############# debug transmissive pass ###########
 

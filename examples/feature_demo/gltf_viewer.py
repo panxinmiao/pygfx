@@ -29,7 +29,11 @@ renderer.blend_mode = "ordered1"
 
 scene = gfx.Scene()
 
-scene.add(gfx.AmbientLight(intensity=0.1))
+scene.add(gfx.AmbientLight(intensity=0.3))
+directional_light = gfx.DirectionalLight(intensity=2.5)
+directional_light.local.position = (1, 2, 3)
+scene.add(directional_light)
+
 camera = gfx.PerspectiveCamera(45, 1280 / 720)
 
 gfx.OrbitController(camera, register_events=renderer)
