@@ -1336,7 +1336,9 @@ class GLTFMaterialsTransmissionExtension(GLTFBaseMaterialsExtension):
 
         transmission_texture = extension.get("transmissionTexture", None)
         if transmission_texture is not None:
-            material.transmission_map = self._load_texture(transmission_texture)
+            material.transmission_map = self.parser._load_gltf_texture_map(
+                transmission_texture
+            )
 
 
 class GLTFMaterialsVolumeExtension(GLTFBaseMaterialsExtension):
@@ -1357,7 +1359,9 @@ class GLTFMaterialsVolumeExtension(GLTFBaseMaterialsExtension):
 
         thickness_texture = extension.get("thicknessTexture", None)
         if thickness_texture is not None:
-            material.thickness_map = self._load_texture(thickness_texture)
+            material.thickness_map = self.parser._load_gltf_texture_map(
+                thickness_texture
+            )
 
         attenuation_color = extension.get("attenuationColor", None)
         if attenuation_color is not None:
