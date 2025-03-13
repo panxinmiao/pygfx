@@ -78,13 +78,19 @@ class MeshShader(BaseShader):
 
         self["color_mode"] = color_mode
 
-        if material.map is not None:
-            self["use_colormap"] = True
+        if material.map is not None and color_mode in (
+            "vertex_map",
+            "face_map",
+            "auto",
+        ):
+            self["use_map"] = True
             self["colorspace"] = material.map.texture.colorspace
         else:
-            self["use_colormap"] = False
+            self["use_map"] = False
 
-        if getattr(geometry, "colors", None):
+        if getattr(geometry, "colors", None) and (
+            color_mode in ("vertex", "face", "auto")
+        ):
             nchannels = nchannels_from_format(geometry.colors.format)
             self["use_vertex_color"] = True
             self["color_buffer_channels"] = nchannels
@@ -174,19 +180,39 @@ class MeshShader(BaseShader):
         if self["use_vertex_color"]:
             bindings.append(Binding("s_colors", rbuffer, geometry.colors, "VERTEX"))
 
-        if self["use_colormap"]:
-            bindings.extend(
-                # todo: unify the logic with other maps (use self._define_texture_map)?
-                self.define_colormap(material.map, geometry.texcoords)
+        if getattr(geometry, "tangents", None):
+            bindings.append(Binding("s_tangents", rbuffer, geometry.tangents, "VERTEX"))
+            self["use_tangent"] = True
+
+        if self["use_map"]:
+            map = material.map
+            map_fmt, map_dim = to_texture_format(map.texture.format), map.texture.dim
+            is_standard_map = (
+                map_dim == 2
+                and ("norm" in map_fmt or "float" in map_fmt)
+                and ("rgb" in map_fmt)  # note: we assume r*, rg* maps are colormap
             )
 
-            if 0 not in self["used_uv"]:
-                texcoords = getattr(geometry, "texcoords", None)
-                bindings.append(Binding("s_texcoords", rbuffer, texcoords, "VERTEX"))
-                if texcoords.data.ndim == 1:
-                    self["used_uv"][0] = 1
-                else:
-                    self["used_uv"][0] = texcoords.data.shape[-1]
+            if not is_standard_map:
+                # It's a 'generic' colormap
+                self["use_colormap"] = True
+                bindings.extend(
+                    self.define_generic_colormap(material.map, geometry.texcoords)
+                )
+                if 0 not in self["used_uv"]:
+                    texcoords = getattr(geometry, "texcoords", None)
+                    bindings.append(
+                        Binding("s_texcoords", rbuffer, texcoords, "VERTEX")
+                    )
+                    if texcoords.data.ndim == 1:
+                        self["used_uv"][0] = 1
+                    else:
+                        self["used_uv"][0] = texcoords.data.shape[-1]
+            else:
+                # It's a classic mesh map
+                bindings.extend(self._define_texture_map(geometry, material.map, "map"))
+
+            self["colorspace"] = material.map.texture.colorspace
 
         if self["use_skinning"]:
             # Skinning requires skin_index and skin_weight buffers
@@ -290,7 +316,7 @@ class MeshShader(BaseShader):
             )
 
             if isinstance(material, MeshStandardMaterial):
-                self["use_IBL"] = True
+                self["USE_IBL"] = True
             elif isinstance(material, MeshBasicMaterial):
                 self["use_env_map"] = True
                 self["env_combine_mode"] = getattr(
@@ -681,6 +707,18 @@ class MeshPhysicalShader(MeshStandardShader):
                 )
                 self["use_iridescence_thickness_map"] = True
 
+        # anisotropy
+        if material.anisotropy:
+            self["USE_ANISOTROPY"] = True
+
+            if material.anisotropy_map is not None:
+                bindings.extend(
+                    self._define_texture_map(
+                        geometry, material.anisotropy_map, "anisotropy_map"
+                    )
+                )
+                self["use_anisotropy_map"] = True
+
         # transmission
         if material.transmission:
             self["USE_TRANSMISSION"] = True
@@ -834,7 +872,9 @@ class MeshSliceShader(BaseShader):
         if self["color_mode"] in ("vertex", "face"):
             bindings.append(Binding("s_colors", rbuffer, geometry.colors, "VERTEX"))
         elif self["color_mode"] in ("vertex_map", "face_map"):
-            bindings.extend(self.define_colormap(material.map, geometry.texcoords))
+            bindings.extend(
+                self.define_generic_colormap(material.map, geometry.texcoords)
+            )
 
         # Let the shader generate code for our bindings
         bindings = {i: binding for i, binding in enumerate(bindings)}
