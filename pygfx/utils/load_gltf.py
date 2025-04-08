@@ -201,6 +201,7 @@ class _GLTF:
         self._register_plugin(GLTFMaterialsUnlitExtension)
         self._register_plugin(GLTFLightsExtension)
         self._register_plugin(GLTFTextureTransformExtension)
+        self._register_plugin(GLTFMaterialsPBRSpecularGlossinessExtension)
 
     def _register_plugin(self, plugin_class):
         plugin = plugin_class(self)
@@ -1548,3 +1549,37 @@ class GLTFTextureTransformExtension(GLTFExtension):
             texture_map.uv_channel = texcoord
 
         texture_map.update_matrix()
+
+
+class GLTFMaterialsPBRSpecularGlossinessExtension(GLTFBaseMaterialsExtension):
+    EXTENSION_NAME = "KHR_materials_pbrSpecularGlossiness"
+
+    def extend_material(self, material_def, material):
+        if (
+            not material_def.extensions
+            or self.EXTENSION_NAME not in material_def.extensions
+        ):
+            return
+
+        extension = material_def.extensions[self.EXTENSION_NAME]
+
+        material.ior = 0.0
+
+        diffuse_factor = extension.get("diffuseFactor", [1.0, 1.0, 1.0, 1.0])
+        material.color = gfx.Color.from_physical(*diffuse_factor)
+
+        diffuse_texture = extension.get("diffuseTexture", None)
+        if diffuse_texture is not None:
+            material.map = self.parser._load_gltf_texture_map(diffuse_texture)
+
+        specular_factor = extension.get("specularFactor", [1.0, 1.0, 1.0])
+        material.specular = gfx.Color.from_physical(*specular_factor)
+
+        glossiness_factor = extension.get("glossinessFactor", 0.0)
+        material.roughness = 1.0 - glossiness_factor
+
+        specular_glossiness_texture = extension.get("specularGlossinessTexture", None)
+        if specular_glossiness_texture is not None:
+            material.specular_map = self.parser._load_gltf_texture_map(
+                specular_glossiness_texture
+            )

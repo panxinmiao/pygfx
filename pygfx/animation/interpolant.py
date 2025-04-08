@@ -42,17 +42,27 @@ class Interpolant:
         i1 = self._cached_index
         len_pp = len(pp)
 
+        if len_pp == 0:
+            raise ValueError("The parameter_positions array is empty.")
+        
+        if len_pp == 1:
+            return self.sample_values[0]
+
         t1 = pp[i1] if i1 < len_pp else None
         t0 = pp[i1 - 1] if i1 > 0 else None
 
+        on_right = False
+        on_left = False
+
         # check if t is in the interval of the cached index, scan the 2 adjacent intervals at most
         if t1 is None or t >= t1:
+            on_right = True
             # scan the right side of the interval, at most 2 intervals
             for _ in range(2):
                 i1 += 1
                 if i1 >= len_pp:
-                    if t < t0:
-                        break  # break to the binary search
+                    if t < t0:  # t1 is None
+                        break  # when the animation is looped, scan the biggining after the end
 
                     # after the end
                     i1 = len_pp
@@ -69,7 +79,9 @@ class Interpolant:
 
             # prepare binary search on the right side of the index
             right = len_pp
-        elif t0 is None or t < t0:
+
+        if t0 is None or t < t0:
+            on_left = True
             global_t1 = pp[1]  # the first keyframe
             if t < global_t1:
                 # when the animation is looped, scan the biggining after the end
@@ -95,7 +107,8 @@ class Interpolant:
             # prepare binary search on the left side of the index
             right = i1
             i1 = 0
-        else:
+
+        if not on_right and not on_left:
             # the interval is cached, just interpolate
             self._cached_index = i1
             return self._interpolate(i1, t0, t, t1)
