@@ -144,6 +144,7 @@ class WgpuRenderer(RootEventHandler, Renderer):
         sort_objects=False,
         enable_events=True,
         gamma_correction=1.0,
+        sample_count=1,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -213,8 +214,22 @@ class WgpuRenderer(RootEventHandler, Renderer):
         now = time.perf_counter()
         self._fps = {"start": now, "count": 0}
 
+        self.sample_count = sample_count
+
         if enable_events:
             self.enable_events()
+
+    @property
+    def sample_count(self):
+        """The number of samples for multisampling."""
+        return self._sample_count
+    
+    @sample_count.setter
+    def sample_count(self, value):
+        if value is None:
+            value = 1
+        self._sample_count = int(value)
+
 
     @property
     def device(self):
@@ -541,7 +556,7 @@ class WgpuRenderer(RootEventHandler, Renderer):
         pixel_ratio = physical_size[1] / logical_size[1]
 
         # Update the render targets
-        self._blender.ensure_target_size(physical_size)
+        self._blender.ensure_target_size(physical_size, self.sample_count)
 
         # Get viewport in physical pixels
         if not rect:
@@ -1033,10 +1048,10 @@ class WgpuRenderer(RootEventHandler, Renderer):
         """
         event_type = event["event_type"]
         target = None
-        if "x" in event and "y" in event:
-            info = self.get_pick_info((event["x"], event["y"]))
-            target = info["world_object"]
-            event["pick_info"] = info
+        # if "x" in event and "y" in event:
+        #     info = self.get_pick_info((event["x"], event["y"]))
+        #     target = info["world_object"]
+        #     event["pick_info"] = info
 
         ev = EVENT_TYPE_MAP[event_type](
             type=event_type, **event, target=target, root=self

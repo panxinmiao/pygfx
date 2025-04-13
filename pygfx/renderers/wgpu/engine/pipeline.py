@@ -130,6 +130,7 @@ def get_cached_render_pipeline(device, *args):
             cull_mode,
             depth_descriptor,
             color_descriptors,
+            sample_count,
         ) = args
 
         result = device.create_render_pipeline(
@@ -147,7 +148,7 @@ def get_cached_render_pipeline(device, *args):
             },
             depth_stencil=depth_descriptor,
             multisample={
-                "count": 1,
+                "count": sample_count,
                 "mask": 0xFFFFFFFF,
                 "alpha_to_coverage_enabled": False,
             },
@@ -647,6 +648,7 @@ class RenderPipelineContainer(PipelineContainer):
             cull_mode,
             depth_descriptor,
             color_descriptors,
+            blender.sample_count,
         )
 
     def draw(self, render_pass, renderstate, pass_index, render_mask):

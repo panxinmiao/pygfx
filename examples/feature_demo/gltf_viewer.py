@@ -26,6 +26,7 @@ canvas = WgpuCanvas(size=(1280, 720), max_fps=-1, title="glTF viewer", vsync=Fal
 renderer = gfx.WgpuRenderer(canvas)
 # renderer.sort_objects = True
 renderer.blend_mode = "ordered1"
+renderer.sample_count = 4
 
 scene = gfx.Scene()
 

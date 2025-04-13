@@ -51,7 +51,7 @@ class Shared(Trackable):
     # target platforms.
 
     _features = set(["float32-filterable"])
-    _limits = dict()
+    _limits = dict(maxBufferSize=2**30)
     _selected_adapter = None
     _power_preference = None
     _instance = None

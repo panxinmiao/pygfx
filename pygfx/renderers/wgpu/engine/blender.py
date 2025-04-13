@@ -98,37 +98,31 @@ class OpaquePass(BasePass):
                 },
                 "write_mask": wgpu.ColorWrite.ALL,
             },
-            {
-                "format": blender.pick_format,
-                "blend": None,
-                "write_mask": wgpu.ColorWrite.ALL if material_write_pick else 0,
-            },
         ]
 
     def get_color_attachments(self, blender):
-        color_load_op = pick_load_op = wgpu.LoadOp.load
+        color_load_op = wgpu.LoadOp.load
         if blender.color_clear:
             blender.color_clear = False
             color_load_op = wgpu.LoadOp.clear
         if blender.pick_clear:
             blender.pick_clear = False
-            pick_load_op = wgpu.LoadOp.clear
+
+        if blender.sample_count > 1:
+            color_view = blender.color_buffer_view
+            resolve_target = blender.color_view
+        else:
+            color_view = blender.color_view
+            resolve_target = None
 
         return [
             {
-                "view": blender.color_view,
-                "resolve_target": None,
+                "view": color_view,
+                "resolve_target": resolve_target,
                 "clear_value": (0, 0, 0, 0),
                 "load_op": color_load_op,
                 "store_op": wgpu.StoreOp.store,
-            },
-            {
-                "view": blender.pick_view,
-                "resolve_target": None,
-                "clear_value": (0, 0, 0, 0),
-                "load_op": pick_load_op,
-                "store_op": wgpu.StoreOp.store,
-            },
+            }
         ]
 
     def get_depth_descriptor(self, blender):
@@ -154,7 +148,6 @@ class OpaquePass(BasePass):
         return """
         struct FragmentOutput {
             @location(0) color: vec4<f32>,
-            @location(1) pick: vec4<u32>,
         };
         fn get_fragment_output(position: vec4<f32>, color: vec4<f32>) -> FragmentOutput {
             if (color.a < 1.0 - ALPHA_COMPARE_EPSILON ) { discard; }
@@ -238,11 +231,6 @@ class SimpleSinglePass(OpaquePass):
                 },
                 "write_mask": wgpu.ColorWrite.ALL,
             },
-            {
-                "format": blender.pick_format,
-                "blend": None,
-                "write_mask": wgpu.ColorWrite.ALL if material_write_pick else 0,
-            },
         ]
 
     def get_shader_code(self, blender):
@@ -250,7 +238,6 @@ class SimpleSinglePass(OpaquePass):
         return """
         struct FragmentOutput {
             @location(0) color: vec4<f32>,
-            @location(1) pick: vec4<u32>,
         };
         fn get_fragment_output(position: vec4<f32>, color: vec4<f32>) -> FragmentOutput {
             var out : FragmentOutput;
@@ -547,6 +534,8 @@ class BaseFragmentBlender:
         # The size (2D in pixels) of the frame textures.
         self.size = (0, 0)
 
+        self.sample_count = None
+
         # Objects for the combination pass
         self._combine_pass_pipeline = None
         self._combine_pass_bind_group = None
@@ -591,16 +580,15 @@ class BaseFragmentBlender:
         """Clear the deph buffer only."""
         self.depth_clear = True
 
-    def ensure_target_size(self, size):
+    def ensure_target_size(self, size, sample_count=1):
         """If necessary, resize render-textures to match the target size."""
 
         assert len(size) == 2
         size = size[0], size[1]
-        if size == self.size:
+        if size == self.size and sample_count == self.sample_count:
             return
 
-        # Set new size
-        self.size = size
+
         tex_size = (*size, 1)
 
         # Any bind group is now invalid because they include source textures.
@@ -608,13 +596,36 @@ class BaseFragmentBlender:
 
         # Recreate internal textures
         for name, (format, usage) in self._texture_info.items():
-            wgpu_texture = self.device.create_texture(
-                size=tex_size, usage=usage, dimension="2d", format=format
-            )
+            if name == "color" and sample_count > 1:
+                # Create a multisampled texture and a non-multisampled texture for resolve_target
+                # Currently: "color"、"accum"、“reveal”、"frontcolor"
+                buffer_wgpu_texture = self.device.create_texture(
+                    size=tex_size, usage=wgpu.TextureUsage.RENDER_ATTACHMENT, dimension="2d", format=format, sample_count=sample_count
+                )
+                setattr(self, name + "_buffer_tex", buffer_wgpu_texture)
+                setattr(self, name + "_buffer_view", buffer_wgpu_texture.create_view())
+
+                if self.size != size: # Only recreate the texture when the size changes
+                    wgpu_texture = self.device.create_texture(
+                        size=tex_size, usage=usage, dimension="2d", format=format
+                    )
+                    setattr(self, name + "_tex", wgpu_texture)
+                    setattr(self, name + "_view", wgpu_texture.create_view())
+            else:
+                # Can't resolvable, create a single multisampled texture
+                # Currently: "depth"、"pick"
+                wgpu_texture = self.device.create_texture(
+                    size=tex_size, usage=usage, dimension="2d", format=format, sample_count=sample_count
+                )
+
+                setattr(self, name + "_tex", wgpu_texture)
+                setattr(self, name + "_view", wgpu_texture.create_view())
+
             setattr(self, name + "_format", format)
-            setattr(self, name + "_tex", wgpu_texture)
-            setattr(self, name + "_view", wgpu_texture.create_view())
-            setattr(self, name + "_clear", True)
+
+        # Set new size
+        self.size = size
+        self.sample_count = sample_count
 
     # The five methods below represent the API that the render system uses.
 
