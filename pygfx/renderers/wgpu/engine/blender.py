@@ -561,7 +561,7 @@ class BaseFragmentBlender:
         # (webgpu) extension with the same name.
         self._texture_info["depth"] = (
             wgpu.TextureFormat.depth32float,
-            usg.RENDER_ATTACHMENT | usg.COPY_SRC,
+            usg.RENDER_ATTACHMENT | usg.COPY_SRC | usg.TEXTURE_BINDING,
         )
 
         # The pick texture has 4 16bit channels, adding up to 64 bits.
