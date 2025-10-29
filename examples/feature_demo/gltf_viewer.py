@@ -119,11 +119,11 @@ env_tex = gfx.Texture(
 
 env_map = gfx.TextureMap(env_tex)
 
+scene.add(gfx.Background.from_color((0.1, 0.1, 0.1, 1)))
+
 background = gfx.Background(None, gfx.BackgroundSkyboxMaterial(map=env_tex))
 background.visible = False
 scene.add(background)
-
-scene.add(gfx.Background.from_color((0.1, 0.1, 0.1, 1)))
 
 
 def add_env_map(obj, env_map):
@@ -219,7 +219,7 @@ def load_model(model_path):
 
         collect_inspector_targets(model_obj)
     except Exception as e:
-        gfx.logger.error(f"Error loading module: {e}")
+        gfx.logger.error(f"Error loading model: {e}")
 
 
 def draw_imgui():
@@ -450,12 +450,13 @@ def show_inspector():
                                     box_helper = gfx.BoxHelper()
 
                                     obj._box_helper = box_helper
-                                    scene.add(box_helper)
+                                    obj._box_helper.set_transform_by_object(
+                                        obj, space="local"
+                                    )
+                                    obj.add(box_helper)
                                     obj._box_helper.visible = False
 
                                 obj._box_helper.visible = not obj._box_helper.visible
-                                if obj._box_helper.visible:
-                                    obj._box_helper.set_transform_by_object(obj)
 
                             if imgui.is_item_hovered():
                                 imgui.set_tooltip("Toggle bounding box")
