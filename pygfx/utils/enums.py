@@ -12,6 +12,8 @@ The enums used in pygfx. The enums are all available from the root ``pygfx`` nam
     CoordSpace
     EdgeMode
     ElementFormat
+    MarkerInt
+    MarkerMode
     MarkerShape
     SizeMode
     TextAlign
@@ -32,6 +34,8 @@ __all__ = [
     "CoordSpace",
     "EdgeMode",
     "ElementFormat",
+    "MarkerInt",
+    "MarkerMode",
     "MarkerShape",
     "PixelFilter",
     "SizeMode",
@@ -43,6 +47,34 @@ __all__ = [
 
 class Enum(BaseEnum):
     """Enum base class for pygfx."""
+
+
+class AlphaMethod(Enum):
+    """Enum that defines the different alpha methods."""
+
+    opaque = None  #: opaque object
+    stochastic = None  #: stochastic transparency
+    blended = None  #: per-fragment blending
+    weighted = None  #: weighted blending
+
+
+class AlphaMode(Enum):
+    """Emum that defines the predefined modes for for how the alpha value of an object's fragment is used to combine it with the output texture."""
+
+    auto = (
+        None  #: use classic blending, while depth_write defaults to True if opacity==1.
+    )
+    solid = None  #: alpha is ignored.
+    solid_premul = None  #: the alpha is multiplied with the color (making it darker).
+    dither = None  #: stochastic transparency with blue noise.
+    bayer = None  #: stochastic transparency with a Bayer pattern.
+    blend = None  #: use classic alpha blending using the over-operator.
+    add = None  #: use additive blending that adds the fragment color, multiplied by alpha.
+    subtract = None  #: use subtractive blending that removes the fragment color.
+    multiply = None  #: use multiplicative blending that multiplies the fragment color.
+    weighted_blend = None  #: weighted blended order independent transparency.
+    weighted_solid = None  #: fragments are combined based on alpha, but the final alpha is always 1. Great for e.g. image stitching.
+    custom = None  #: value to indicate a custom alpha config.
 
 
 class EdgeMode(Enum):
@@ -65,6 +97,13 @@ class ColorMode(Enum):
     )
 
 
+class MarkerMode(Enum):
+    """The MarkerMode enum specifies how an object's marker is established."""
+
+    uniform = None  #: Use a uniform marker, specified on the material.
+    vertex = None  #: Use a per-vertex marker specified with ``geometry.markers``.
+
+
 class SizeMode(Enum):
     """The SizeMode enum specifies how an object's size/width/thickness is established."""
 
@@ -80,6 +119,7 @@ class RotationMode(Enum):
 
     uniform = None  #: Use a uniform rotation.
     vertex = None  #: Use a per-vertex rotation specified with ``geometry.rotations``.
+    curve = None  #: The rotation follows the curve of the line defined by the points (in screen space).
 
 
 class CoordSpace(Enum):
@@ -99,7 +139,11 @@ class MarkerShape(Enum):
     diamond = None  #: ♦ A rotated square (sized to fit inside the circle).
     plus = None  #: + A plus symbol.
     cross = None  #: x A rotated plus symbol.
-    asterix = None  #: ✳️ A plus and a cross combined.
+    asterisk6 = None  #: * A star-like symbol with 6 legs.
+    asterisk8 = None  #: ✳️ A star-like symbol with 8 legs.
+    tick = None  #: A tickmark: an infinitely thin line so only the marker edge is drawn. The width and length can be controller with 'edge_width' and 'size' respectively.
+    tick_left = None  #: A tickmark that is on the left side of the line (viewed from the line's start).
+    tick_right = None  #: A tickmark that is on the right side of the line (viewed from the line's start).
     triangle_up = None  #: ▲
     triangle_down = None  #: ▼
     triangle_left = None  #: ◀
@@ -108,7 +152,32 @@ class MarkerShape(Enum):
     spade = None  #: ♠
     club = None  #: ♣
     pin = None  #: 📍
-    custom = None  # Custom shape allowing users to provide their own SDF function
+    custom = None  #: Custom shape allowing users to provide their own SDF function
+
+
+class MarkerInt(Enum):
+    """The MarkerInt enums maps marker shape names to an integer."""
+
+    circle = 101
+    ring = 102
+    square = 201
+    diamond = 202
+    plus = 203
+    cross = 204
+    asterisk6 = 226
+    asterisk8 = 228
+    tick = 206
+    tick_left = 207
+    tick_right = 208
+    triangle_up = 301
+    triangle_down = 302
+    triangle_left = 303
+    triangle_right = 304
+    heart = 401
+    spade = 402
+    club = 403
+    pin = 404
+    custom = 901
 
 
 class ElementFormat(Enum):

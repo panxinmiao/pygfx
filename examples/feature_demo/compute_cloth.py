@@ -530,7 +530,7 @@ cloth_material = gfx.MeshPhysicalMaterial(
     color=(0.2, 0.4, 0.8),
     side="both",
     opacity=0.85,
-    transparent=True,
+    alpha_mode="blend",
     env_map=env_tex,
     env_map_intensity=3.0,
     sheen=1.0,
@@ -611,7 +611,6 @@ show_verlet_system = False
 def draw_ui():
     global wireframe_mode, show_sphere, show_verlet_system
 
-    imgui.new_frame()
     imgui.set_next_window_size((350, 0), imgui.Cond_.always)
     imgui.set_next_window_pos((0, 0), imgui.Cond_.always)
 
@@ -646,9 +645,6 @@ def draw_ui():
         )
 
     imgui.end()
-    imgui.end_frame()
-    imgui.render()
-    return imgui.get_draw_data()
 
 
 gui_renderer.set_gui(draw_ui)

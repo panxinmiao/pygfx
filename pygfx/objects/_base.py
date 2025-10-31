@@ -227,6 +227,13 @@ class WorldObject(EventTarget, Trackable):
             None
         )  # break the circular reference so GC has it a little easier
 
+    def _self(self):
+        """Get self. This looks silly, but in case the WorldObject is
+        wrapped in a weakproxy, like FastPlotLib does, this gets the
+        real wobject, so we can hash it. You cannot dereference a weak.proxy.
+        """
+        return self
+
     @property
     def up(self) -> np.ndarray:
         """
@@ -265,9 +272,21 @@ class WorldObject(EventTarget, Trackable):
 
     @property
     def render_order(self) -> float:
-        """A number that helps control the order in which objects are rendered.
-        Objects with higher ``render_order`` get rendered later.
-        Default 0. Also see ``Renderer.sort_objects``.
+        """Per-object rendering priority used to fine-tune the draw order within a render queue.
+
+        Objects with higher render_order values are rendered later than those with lower values.
+        This affects both opaque and transparent objects and can be used to resolve z-fighting,
+        or control draw order beyond automatic depth sorting.
+
+        The effective render order is the sum of its render order and thet of all its parents.
+
+        The order in wich objects are rendered is:
+            1. the ``material.render_queue``.
+            2. the effective ``render_order``.
+            3. the distance to camera (if ``render.sort_objects==True``).
+            4. the position of the object in the scene graph.
+
+        Also see ``material.render_queue``.
         """
         # Note: the render order is on the object, not the material, because it affects
         # a specific object, and materials are often shared between multiple objects.
@@ -284,7 +303,7 @@ class WorldObject(EventTarget, Trackable):
     @render_mask.setter
     def render_mask(self, value):
         raise DeprecationWarning(
-            "render_mask is deprecated, see material.transparent to control how the rendere should treat an object."
+            "render_mask is deprecated, see material.alpha_mode to control how the renderer should treat an object."
         )
 
     @property
@@ -511,7 +530,7 @@ class WorldObject(EventTarget, Trackable):
             return bounds.aabb
 
     def get_bounding_box(self) -> np.ndarray | None:
-        """Axis-aligned bounding box in parent space.
+        """Axis-aligned bounding box in local model space.
 
         Returns
         -------
@@ -534,7 +553,7 @@ class WorldObject(EventTarget, Trackable):
         # Combine
         if _aabbs:
             aabbs = np.stack(_aabbs)
-            final_aabb = np.zeros((2, 3), dtype=float)
+            final_aabb = np.empty((2, 3), dtype=float)
             final_aabb[0] = np.min(aabbs[:, 0, :], axis=0)
             final_aabb[1] = np.max(aabbs[:, 1, :], axis=0)
         else:
@@ -543,7 +562,7 @@ class WorldObject(EventTarget, Trackable):
         return final_aabb
 
     def get_bounding_sphere(self) -> np.ndarray | None:
-        """Bounding Sphere in parent space.
+        """Bounding Sphere in local model space.
 
         Returns
         -------
