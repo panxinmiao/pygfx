@@ -501,7 +501,7 @@ class WgpuRenderer(RootEventHandler, Renderer):
             )
         self._output_color_space = value
 
-        if isinstance(self._target, AnyBaseCanvas):
+        if isinstance(self._target, BaseRenderCanvas):
             # Reconfigure the canvas with the new color space
             self._config_canvas()
 
