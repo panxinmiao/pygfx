@@ -1608,7 +1608,7 @@ class GLTFMaterialsVolumeExtension(GLTFBaseMaterialsExtension):
 
         attenuation_color = extension.get("attenuationColor", None)
         if attenuation_color is not None:
-            material.attenuation_color = gfx.Color.from_physical(*attenuation_color)
+            material.attenuation_color = gfx.Color(*attenuation_color)
 
         attenuation_distance = extension.get("attenuationDistance", None)
         if attenuation_distance is not None:
@@ -1704,15 +1704,17 @@ class GLTFMaterialsPBRSpecularGlossinessExtension(GLTFBaseMaterialsExtension):
 
         # specular color factor
         specular_factor = extension.get("specularFactor", [1.0, 1.0, 1.0])
-        material.specular = gfx.Color.from_physical(*specular_factor)
+        material.specular = gfx.Color(*specular_factor)
 
         # diffuse -> base color
         diffuse_factor = extension.get("diffuseFactor", [1.0, 1.0, 1.0, 1.0])
-        material.color = gfx.Color.from_physical(*diffuse_factor)
+        material.color = gfx.Color(*diffuse_factor)
 
         diffuse_texture = extension.get("diffuseTexture", None)
         if diffuse_texture is not None:
-            material.map = self.parser._load_gltf_texture_map(diffuse_texture)
+            material.map = self.parser._load_gltf_texture_map(
+                diffuse_texture, colorspace=gfx.ColorSpace.srgb
+            )
 
         # Move specular + gloss -> specular + roughness.
         specular_glossiness_texture = extension.get("specularGlossinessTexture", None)
@@ -1720,7 +1722,7 @@ class GLTFMaterialsPBRSpecularGlossinessExtension(GLTFBaseMaterialsExtension):
         if specular_glossiness_texture is not None:
             # specularGlossiness -> specular.
             specular_texture_map = self.parser._load_gltf_texture_map(
-                specular_glossiness_texture
+                specular_glossiness_texture, colorspace=gfx.ColorSpace.srgb
             )
 
             glossiness_channel = specular_texture_map.texture.data[..., 3].copy()
