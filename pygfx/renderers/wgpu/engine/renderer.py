@@ -818,7 +818,7 @@ class WgpuRenderer(RootEventHandler, Renderer):
 
         # todo: get texture format from blender
         self._shared.ensure_transmission_framebuffer_size(
-            self.physical_size, wgpu.TextureFormat.rgba16float
+            self.physical_size, self._blender.texture_info["color"]["format"]
         )
 
         # Make sure pipeline objects exist for all wobjects. This also collects the bake functons.
