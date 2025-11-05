@@ -86,6 +86,7 @@ class FlatScene:
         self.has_transmissive_objects = False
 
         self.object_count = object_count
+        self.scene = scene
         self.add_scene(scene)
 
     def _iter_scene(self, wobject, group_order=0):
@@ -196,8 +197,10 @@ class FlatScene:
         ]:
             for item in objects:
                 container_group = get_pipeline_container_group(
-                    item.wobject, renderstate
-                )
+                
+                    item.wobject, self.scene, renderstate
+                
+            )
                 compute_pipeline_containers.extend(container_group.compute_containers)
                 item.container_group = container_group
                 for func in container_group.bake_functions:
