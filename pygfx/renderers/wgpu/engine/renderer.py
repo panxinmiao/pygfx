@@ -197,10 +197,8 @@ class FlatScene:
         ]:
             for item in objects:
                 container_group = get_pipeline_container_group(
-                
                     item.wobject, self.scene, renderstate
-                
-            )
+                )
                 compute_pipeline_containers.extend(container_group.compute_containers)
                 item.container_group = container_group
                 for func in container_group.bake_functions:
@@ -817,7 +815,11 @@ class WgpuRenderer(RootEventHandler, Renderer):
         # Get renderstate object
         renderstate = get_renderstate(flat.lights, self._blender)
         self._renderstates_per_flush[0].append(renderstate)
-        self._shared.ensure_transmission_framebuffer_size(self.physical_size)
+
+        # todo: get texture format from blender
+        self._shared.ensure_transmission_framebuffer_size(
+            self.physical_size, wgpu.TextureFormat.rgba16float
+        )
 
         # Make sure pipeline objects exist for all wobjects. This also collects the bake functons.
         flat.collect_pipelines_container_groups(renderstate)
