@@ -208,9 +208,9 @@ class PhysicalBasedBloomPass(EffectPass):
     def __init__(
         self,
         *,
-        bloom_strength=0.04,
+        bloom_strength=0.01,
         max_mip_levels=6,
-        filter_radius=0.005,
+        filter_radius=0.003,
         use_karis_average=False,
     ):
         """
@@ -218,11 +218,11 @@ class PhysicalBasedBloomPass(EffectPass):
 
         Parameters:
         -----------
-        bloom_strength : float, default 0.04
+        bloom_strength : float, default 0.01
             The strength of the bloom effect. Lower values create more subtle bloom.
         max_mip_levels : int, default 6
             Max number of mip levels for downsampling/upsampling chain.
-        filter_radius : float, default 0.005
+        filter_radius : float, default 0.003
             Filter radius for upsampling in texture coordinates.
         use_karis_average : bool, default True
             Whether to use Karis average on first downsample to prevent fireflies.

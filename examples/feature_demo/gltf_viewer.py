@@ -45,6 +45,19 @@ glfw.set_window_aspect_ratio(canvas._window, 16, 9)
 
 scene = gfx.Scene()
 
+# Create bloom effect pass using the new API
+bloom_pass = gfx.renderers.wgpu.PhysicalBasedBloomPass(
+    bloom_strength=0.2,
+    max_mip_levels=6,
+    filter_radius=0.005,
+    use_karis_average=False,
+)
+
+tone_mapping_pass = gfx.renderers.wgpu.ToneMappingPass()
+
+# Add bloom pass to renderer's effect passes
+renderer.effect_passes = [bloom_pass, tone_mapping_pass]
+
 
 ambient_light = gfx.AmbientLight(intensity=0.3)
 scene.add(ambient_light)
@@ -288,6 +301,59 @@ def draw_imgui():
                     scene.environment = env_tex
                 else:
                     scene.environment = None
+
+        if imgui.collapsing_header("Effects", imgui.TreeNodeFlags_.default_open):
+            imgui.begin_group()
+            _, bloom_pass.enable = imgui.checkbox("Bloom", bloom_pass.enable)
+
+            if bloom_pass.enable:
+                changed, bloom_pass.bloom_strength = imgui.slider_float(
+                    "Bloom Strength", bloom_pass.bloom_strength, 0.0, 1.0
+                )
+                changed, bloom_pass.max_mip_levels = imgui.slider_int(
+                    "Max Mipmap Levels", bloom_pass.max_mip_levels, 1, 10
+                )
+                changed, bloom_pass.filter_radius = imgui.slider_float(
+                    "Filter Radius", bloom_pass.filter_radius, 0.0, 0.01
+                )
+                changed, bloom_pass.use_karis_average = imgui.checkbox(
+                    "Use Karis Average", bloom_pass.use_karis_average
+                )
+            imgui.end_group()
+
+            imgui.separator()
+
+            imgui.begin_group()
+            _, tone_mapping_pass.enable = imgui.checkbox(
+                "Tone Mapping", tone_mapping_pass.enable
+            )
+
+            if tone_mapping_pass.enable:
+                changed, tone_mapping_pass.exposure = imgui.slider_float(
+                    "Exposure", tone_mapping_pass.exposure, 0.1, 5.0
+                )
+                changed, v = imgui.combo(
+                    "Tone Mapping Type",
+                    [
+                        gfx.enums.ToneMappingMode.linear,
+                        gfx.enums.ToneMappingMode.neutral,
+                        gfx.enums.ToneMappingMode.reinhard,
+                        gfx.enums.ToneMappingMode.cineon,
+                        gfx.enums.ToneMappingMode.aces_filmic,
+                        gfx.enums.ToneMappingMode.agx,
+                    ].index(tone_mapping_pass.mode),
+                    ["Linear", "Neutral", "Reinhard", "Cineon", "ACESFilmic", "AgX"],
+                )
+                if changed:
+                    tone_mapping_pass.mode = [
+                        gfx.enums.ToneMappingMode.linear,
+                        gfx.enums.ToneMappingMode.neutral,
+                        gfx.enums.ToneMappingMode.reinhard,
+                        gfx.enums.ToneMappingMode.cineon,
+                        gfx.enums.ToneMappingMode.aces_filmic,
+                        gfx.enums.ToneMappingMode.agx,
+                    ][v]
+            imgui.end_group()
 
         if imgui.collapsing_header("Visibility", imgui.TreeNodeFlags_.default_open):
             _, background.visible = imgui.checkbox(

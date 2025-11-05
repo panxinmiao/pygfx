@@ -259,6 +259,17 @@ class ColorSpace(Enum):
     srgb = "srgb"
 
 
+class ToneMappingMode(Enum):
+    """The ToneMappingMode enum specifies the tone mapping operator to use."""
+
+    linear = "linear"
+    neutral = "neutral"
+    reinhard = "reinhard"
+    cineon = "cineon"
+    aces_filmic = "aces_filmic"
+    agx = "agx"
+
+
 # TODO: I experimented with using a Literal[] here, an idea discussed in https://github.com/pygfx/wgpu-py/issues/720.
 # We should eventually use the same approach to all enums (either an Enum class, or Literal type aliases).
 

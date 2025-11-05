@@ -51,7 +51,7 @@ fn getPointLightInfo( point_light: PointLight, geometry: GeometricContext ) -> I
     let i_vector = point_light.world_transform[3].xyz - geometry.position;
     light.direction = normalize(i_vector);
     let light_distance = length(i_vector);
-    light.color = point_light.color.r * point_light.intensity;
+    light.color = point_light.color.rgb * point_light.intensity;
     light.color *= getDistanceAttenuation( light_distance, point_light.distance, point_light.decay );
     light.visible = any(light.color != vec3<f32>(0.0));
     return light;

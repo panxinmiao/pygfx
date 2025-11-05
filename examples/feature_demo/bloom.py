@@ -77,8 +77,10 @@ bloom_pass = gfx.renderers.wgpu.PhysicalBasedBloomPass(
     use_karis_average=False,
 )
 
+tone_mapping_pass = gfx.renderers.wgpu.ToneMappingPass()
+
 # Add bloom pass to renderer's effect passes
-renderer.effect_passes = [bloom_pass]
+renderer.effect_passes = [bloom_pass, tone_mapping_pass]
 
 # Setup lights
 light = gfx.DirectionalLight()
