@@ -930,7 +930,7 @@ class WgpuRenderer(RootEventHandler, Renderer):
                 # Render back side
                 for item in flat.transparent_double_pass_objects:
                     item.wobject.material.side = "back"
-                    item.container_group.update(item.wobject, renderstate)
+                    item.container_group.update(item.wobject, flat.scene, renderstate)
 
                 self._render_objects(
                     flat.transparent_double_pass_objects,
@@ -959,7 +959,7 @@ class WgpuRenderer(RootEventHandler, Renderer):
                 # Render front side
                 for item in flat.transparent_double_pass_objects:
                     item.wobject.material.side = "front"
-                    item.container_group.update(item.wobject, renderstate)
+                    item.container_group.update(item.wobject, flat.scene, renderstate)
 
                 self._render_objects(
                     flat.transparent_objects,
