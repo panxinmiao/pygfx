@@ -47,9 +47,9 @@ scene = gfx.Scene()
 
 # Create bloom effect pass using the new API
 bloom_pass = gfx.renderers.wgpu.PhysicalBasedBloomPass(
-    bloom_strength=0.2,
+    bloom_strength=0.1,
     max_mip_levels=6,
-    filter_radius=0.005,
+    filter_radius=0.003,
     use_karis_average=False,
 )
 

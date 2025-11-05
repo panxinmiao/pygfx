@@ -208,7 +208,7 @@ class PhysicalBasedBloomPass(EffectPass):
     def __init__(
         self,
         *,
-        bloom_strength=0.01,
+        bloom_strength=0.1,
         max_mip_levels=6,
         filter_radius=0.003,
         use_karis_average=False,
