@@ -136,15 +136,13 @@ env_tex = gfx.Texture(
 
 env_map = gfx.TextureMap(env_tex)
 
-scene.add(gfx.Background.from_color((0.1, 0.1, 0.1, 1)))
-
 background = gfx.Background(None, gfx.BackgroundSkyboxMaterial(map=env_tex))
 background.visible = False
 scene.add(background)
 
 scene.add(
     gfx.Background.from_color(
-        gfx.Color(0.1, 0.1, 0.1, 1, colorspace=gfx.ColorSpace.srgb)
+        gfx.Color(0.01, 0.01, 0.01, 1, colorspace=gfx.ColorSpace.srgb)
     )
 )
 
