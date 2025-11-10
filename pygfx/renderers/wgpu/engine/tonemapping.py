@@ -20,12 +20,10 @@ class ToneMappingPass(EffectPass):
         @fragment
         fn fs_main(varyings: Varyings) -> @location(0) vec4<f32> {
             let texCoord = varyings.texCoord;
-            let color = textureSample(colorTex, texSampler, texCoord);
+            var color = textureSample(colorTex, texSampler, texCoord);
 
-            // Apply neutral tone mapping to RGB channels
-            let mapped_rgb = {{tone_mapping_mode}}_toneMapping(color.rgb, u_effect.exposure);
-
-            return vec4<f32>(mapped_rgb, color.a);
+            // Apply tone mapping to RGB channels
+            return vec4<f32>(toneMapping(color.rgb * u_effect.exposure), color.a);
         }
     """
 

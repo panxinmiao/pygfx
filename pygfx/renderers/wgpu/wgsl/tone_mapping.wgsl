@@ -1,24 +1,22 @@
 $$ if tone_mapping_mode == "linear"
     // exposure only
-    fn linear_toneMapping(color: vec3<f32>, exposure: f32) -> vec3<f32> {
-        return saturate(color * exposure);
+    fn toneMapping(color: vec3<f32>) -> vec3<f32> {
+        return saturate(color);
     }
 $$ endif
 
 $$ if tone_mapping_mode == "reinhard"
     // source: https://www.cs.utah.edu/docs/techreports/2002/pdf/UUCS-02-001.pdf
-    fn reinhard_toneMapping(color: vec3<f32>, exposure: f32) -> vec3<f32> {
-        var mapped_color = color * exposure;
-        return saturate(mapped_color / (vec3<f32>(1.0) + mapped_color));
+    fn toneMapping(color: vec3<f32>) -> vec3<f32> {
+        return saturate(color / (vec3<f32>(1.0) + color));
     }
 $$ endif
 
 $$ if tone_mapping_mode == "cineon"
     // source: http://filmicworlds.com/blog/filmic-tonemapping-operators/
-    fn cineon_toneMapping(color: vec3<f32>, exposure: f32) -> vec3<f32> {
+    fn toneMapping(color: vec3<f32>) -> vec3<f32> {
         // filmic operator by Jim Hejl and Richard Burgess-Dawson
-        var mapped_color = color * exposure;
-        mapped_color = max(vec3<f32>(0.0), mapped_color - vec3<f32>(0.004));
+        var mapped_color = max(vec3<f32>(0.0), color - vec3<f32>(0.004));
         return pow((mapped_color * (6.2 * mapped_color + 0.5)) / (mapped_color * (6.2 * mapped_color + 1.7) + 0.06), vec3<f32>(2.2));
     }
 $$ endif
@@ -34,7 +32,7 @@ $$ if tone_mapping_mode == "aces_filmic"
     // this implementation of ACES is modified to accommodate a brighter viewing environment.
     // the scale factor of 1/0.6 is subjective. see discussion in #19621.
 
-    fn aces_filmic_toneMapping(color: vec3<f32>, exposure: f32) -> vec3<f32> {
+    fn toneMapping(color: vec3<f32>) -> vec3<f32> {
         // sRGB => XYZ => D65_2_D60 => AP1 => RRT_SAT
         let ACESInputMat = mat3x3<f32>(
             vec3<f32>(0.59719, 0.07600, 0.02840),
@@ -47,7 +45,7 @@ $$ if tone_mapping_mode == "aces_filmic"
             vec3<f32>(-0.53108, 1.10813, -0.07276),
             vec3<f32>(-0.07367, -0.00605, 1.07602)
         );
-        var mapped_color = color * exposure / 0.6;
+        var mapped_color = color / 0.6;
         mapped_color = ACESInputMat * mapped_color;
 
         // Apply RRT and ODT
@@ -95,7 +93,7 @@ $$ if tone_mapping_mode == "agx"
     // https://github.com/google/filament/pull/7236
     // Inputs and outputs are encoded as Linear-sRGB.
 
-    fn agx_toneMapping( color: vec3<f32>, exposure: f32 ) -> vec3<f32> {
+    fn toneMapping( color: vec3<f32> ) -> vec3<f32> {
         // AgX constants
         let AgXInsetMatrix = mat3x3f(
             vec3f( 0.856627153315983, 0.137318972929847, 0.11189821299995 ),
@@ -112,8 +110,7 @@ $$ if tone_mapping_mode == "agx"
         let AgxMinEv = - 12.47393;  // log2( pow( 2, LOG2_MIN ) * MIDDLE_GRAY )
         let AgxMaxEv = 4.026069;    // log2( pow( 2, LOG2_MAX ) * MIDDLE_GRAY )
 
-        var mapped_color = color * exposure;
-        mapped_color = LINEAR_SRGB_TO_LINEAR_REC2020 * mapped_color;
+        var mapped_color = LINEAR_SRGB_TO_LINEAR_REC2020 * color;
         mapped_color = AgXInsetMatrix * mapped_color;
         // Log2 encoding
         mapped_color = max( mapped_color, vec3f( 1e-10 ) ); // avoid 0 or negative numbers for log2
@@ -138,17 +135,15 @@ $$ endif
 $$ if tone_mapping_mode == "neutral"
 
     // https://modelviewer.dev/examples/tone-mapping
-    fn neutral_toneMapping(color: vec3<f32>, exposure: f32) -> vec3<f32> {
+    fn toneMapping(color: vec3<f32>) -> vec3<f32> {
         let StartCompression = 0.8 - 0.04;
         let Desaturation = 0.15;
-        
-        var mapped_color = color * exposure;
-        
-        let x = min(mapped_color.r, min(mapped_color.g, mapped_color.b));
+
+        let x = min(color.r, min(color.g, color.b));
         let offset = select(0.04, x - 6.25 * x * x, x < 0.08);
-        
-        mapped_color = mapped_color - vec3<f32>(offset);
-        
+
+        var mapped_color = color - vec3<f32>(offset);
+
         let peak = max(mapped_color.r, max(mapped_color.g, mapped_color.b));
         
         if (peak < StartCompression) {
@@ -156,13 +151,13 @@ $$ if tone_mapping_mode == "neutral"
         }
         
         let d = 1.0 - StartCompression;
-        let newPeak = 1.0 - d * d / (peak + d - StartCompression);
+        let new_peak = 1.0 - d * d / (peak + d - StartCompression);
+
+        mapped_color *= (new_peak / peak);
+
+        let g = 1.0 - 1.0 / (Desaturation * (peak - new_peak) + 1.0);
         
-        mapped_color = mapped_color * (newPeak / peak);
-        
-        let g = 1.0 - 1.0 / (Desaturation * (peak - newPeak) + 1.0);
-        
-        return mix(mapped_color, vec3<f32>(newPeak), g);
+        return mix(mapped_color, vec3<f32>(new_peak), g);
     }
 
 $$ endif
