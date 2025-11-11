@@ -27,13 +27,15 @@ class ToneMappingPass(EffectPass):
         }
     """
 
-    def __init__(self, exposure=1.0, mode="neutral"):
+    def __init__(self, exposure=1.0, mode=ToneMappingMode.neutral):
         """Initialize the neutral tone mapping pass.
 
         Parameters
         ----------
         exposure : float, optional
             The exposure value to apply before tone mapping. Default is 1.0.
+        mode : ToneMappingMode, optional
+            The tone mapping mode to use. Default is ToneMappingMode.neutral.
         """
         super().__init__()
         self.exposure = exposure

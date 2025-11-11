@@ -30,7 +30,7 @@ $$ if tone_mapping_mode == "aces_filmic"
     }
 
     // this implementation of ACES is modified to accommodate a brighter viewing environment.
-    // the scale factor of 1/0.6 is subjective. see discussion in #19621.
+    // the scale factor of 1/0.6 is subjective. see discussion in three.js #19621.
 
     fn toneMapping(color: vec3<f32>) -> vec3<f32> {
         // sRGB => XYZ => D65_2_D60 => AP1 => RRT_SAT
@@ -118,7 +118,8 @@ $$ if tone_mapping_mode == "agx"
         mapped_color = ( mapped_color - vec3f( AgxMinEv ) ) / vec3f( AgxMaxEv - AgxMinEv );
         mapped_color = clamp( mapped_color, vec3f( 0.0 ), vec3f( 1.0 ) );
         // Apply sigmoid
-        mapped_color = 1.0 / ( 1.0 + exp( - 10.0 * ( mapped_color - 0.5 ) ) );
+        // mapped_color = 1.0 / ( 1.0 + exp( - 10.0 * ( mapped_color - 0.5 ) ) );
+        mapped_color = agxDefaultContrastApprox( mapped_color );
         // Apply AgX look
         // v = agxLook(v, look);
         mapped_color = AgXOutsetMatrix * mapped_color;
