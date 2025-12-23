@@ -9,7 +9,7 @@ creating an interactive "jelly" effect.
 import numpy as np
 import pygfx as gfx
 import wgpu
-from wgpu.gui.auto import WgpuCanvas, run
+from rendercanvas.auto import RenderCanvas, loop
 from pygfx.utils.compute import ComputeShader
 from imgui_bundle import imgui
 from wgpu.utils.imgui import ImguiRenderer
@@ -24,7 +24,9 @@ except NameError:
     # compatibility with sphinx-gallery
     model_dir = Path(os.getcwd()).parent / "data"
 
-canvas = WgpuCanvas(size=(800, 600), max_fps=-1, title="compute geometry", vsync=False)
+canvas = RenderCanvas(
+    size=(800, 600), update_mode="fastest", title="compute geometry", vsync=False
+)
 renderer = gfx.WgpuRenderer(canvas)
 camera = gfx.PerspectiveCamera(75, 800 / 600, depth_range=(0.1, 1000))
 
@@ -206,7 +208,6 @@ gui_renderer = ImguiRenderer(renderer.device, canvas)
 
 
 def draw_ui():
-    imgui.new_frame()
     imgui.set_next_window_size((300, 0), imgui.Cond_.always)
     imgui.set_next_window_pos((0, 0), imgui.Cond_.always)
 
@@ -218,9 +219,6 @@ def draw_ui():
     _, params_data[7] = imgui.slider_float("Brush Strength", params_data[7], 0.1, 0.3)
 
     imgui.end()
-    imgui.end_frame()
-    imgui.render()
-    return imgui.get_draw_data()
 
 
 gui_renderer.set_gui(draw_ui)
@@ -255,4 +253,4 @@ def animate():
 
 if __name__ == "__main__":
     renderer.request_draw(animate)
-    run()
+    loop.run()
