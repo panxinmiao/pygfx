@@ -323,6 +323,9 @@ class WgpuRenderer(RootEventHandler, Renderer):
             usage=wgpu.BufferUsage.COPY_DST | wgpu.BufferUsage.MAP_READ,
         )
 
+        self._scissor_rect = None
+        self._auto_clear_output = True
+
         # Init fps measurements
         self._show_fps = bool(show_fps)
         now = time.perf_counter()
@@ -340,6 +343,22 @@ class WgpuRenderer(RootEventHandler, Renderer):
     def target(self):
         """The render target. Can be a canvas, texture or texture view."""
         return self._target
+
+    @property
+    def auto_clear_output(self) -> bool:
+        """Whether to auto-clear the final output texture (render target) when rendering.
+
+        If True, the output texture is cleared before rendering a new frame.
+        If False, the previous contents of the output texture are preserved.
+        """
+        return self._auto_clear_output
+
+    @auto_clear_output.setter
+    def auto_clear_output(self, value: bool):
+        self._auto_clear_output = bool(value)
+        self._output_pass.load_op = (
+            wgpu.LoadOp.clear if self._auto_clear_output else wgpu.LoadOp.load
+        )
 
     @property
     def pixel_scale(self) -> float:
@@ -509,6 +528,30 @@ class WgpuRenderer(RootEventHandler, Renderer):
     def rect(self):
         """The rectangular viewport for the renderer area."""
         return (0, 0, *self.logical_size)
+
+    @property
+    def scissor_rect(self):
+        """The scissor rectangle for the renderer area."""
+        return self._scissor_rect
+
+    @scissor_rect.setter
+    def scissor_rect(self, scissor_rect):
+        if scissor_rect is not None:
+            if len(scissor_rect) != 4:
+                raise ValueError(
+                    "The scissor_rect must be None or 4 elements (x, y, w, h)."
+                )
+        self._scissor_rect = scissor_rect
+        self._output_pass._set_scissor_rect(scissor_rect)
+
+        if self._scissor_rect is not None:
+            pixel_ratio = self.physical_size[1] / self.logical_size[1]
+            self._gfx_scaled_scissor_rect = [
+                int(i * pixel_ratio + 0.4999) for i in self._scissor_rect
+            ]
+
+            for effect_pass in self._effect_passes:
+                effect_pass._set_scissor_rect(self._gfx_scaled_scissor_rect)
 
     @property
     def logical_size(self):
@@ -696,6 +739,11 @@ class WgpuRenderer(RootEventHandler, Renderer):
             raise ValueError(
                 "The viewport rect must be None or 4 elements (x, y, w, h)."
             )
+
+        if self._scissor_rect is not None:
+            self._gfx_scaled_scissor_rect = [
+                int(i * pixel_ratio + 0.4999) for i in self._scissor_rect
+            ]
 
         # Apply the camera's native size (do this before we change scene_lsize based on view_offset)
         camera.set_view_size(*scene_lsize)
@@ -911,6 +959,9 @@ class WgpuRenderer(RootEventHandler, Renderer):
             )
 
             render_pass.set_viewport(*physical_viewport)
+
+            if self._scissor_rect is not None:
+                render_pass.set_scissor_rect(*self._gfx_scaled_scissor_rect)
 
             for render_pipeline_container in render_pipeline_containers:
                 render_pipeline_container.draw(render_pass, renderstate)

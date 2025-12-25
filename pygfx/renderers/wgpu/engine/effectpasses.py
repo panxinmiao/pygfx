@@ -182,11 +182,16 @@ class FullQuadPass:
         self._template_vars = {}
         self._template_vars_changed = True
 
+        self._scissor_rect = None
+
     def _set_template_var(self, **kwargs):
         for name, value in kwargs.items():
             if value != self._template_vars.get(name, "stubvaluethatsnotit"):
                 self._template_vars_changed = True  # causes a shader recompile
         self._template_vars.update(kwargs)
+
+    def _set_scissor_rect(self, rect):
+        self._scissor_rect = rect
 
     def render(
         self,
@@ -259,6 +264,10 @@ class FullQuadPass:
             color_attachments=color_attachments,
             depth_stencil_attachment=None,
         )
+
+        if self._scissor_rect is not None:
+            render_pass.set_scissor_rect(*self._scissor_rect)
+
         render_pass.set_pipeline(self._render_pipeline)
         render_pass.set_bind_group(0, bind_group)
         render_pass.draw(4, 1)
