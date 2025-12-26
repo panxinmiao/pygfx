@@ -26,7 +26,7 @@ class PhysicalBasedBloomPass(EffectPass):
     bloom_strength : float
         Strength of the bloom effect. Default 0.04.
     mip_levels : int
-        Max number of mip levels for downsampling/upsampling chain. Default 5.
+        Max number of mip levels for downsampling/upsampling chain. Default 6.
     filter_radius : float
         Filter radius for upsampling in texture coordinates. Default 0.005.
     use_karis_average : bool
@@ -168,7 +168,7 @@ class PhysicalBasedBloomPass(EffectPass):
 
         load_op = wgpu.LoadOp.load
 
-        blend_op = {
+        blend_state = {
             "alpha": {
                 "operation": wgpu.BlendOperation.add,
                 "src_factor": wgpu.BlendFactor.one,
@@ -208,9 +208,9 @@ class PhysicalBasedBloomPass(EffectPass):
     def __init__(
         self,
         *,
-        bloom_strength=0.1,
+        bloom_strength=0.04,
         max_mip_levels=6,
-        filter_radius=0.003,
+        filter_radius=0.005,
         use_karis_average=False,
     ):
         """
@@ -218,11 +218,11 @@ class PhysicalBasedBloomPass(EffectPass):
 
         Parameters:
         -----------
-        bloom_strength : float, default 0.01
+        bloom_strength : float, default 0.04
             The strength of the bloom effect. Lower values create more subtle bloom.
         max_mip_levels : int, default 6
             Max number of mip levels for downsampling/upsampling chain.
-        filter_radius : float, default 0.003
+        filter_radius : float, default 0.005
             Filter radius for upsampling in texture coordinates.
         use_karis_average : bool, default True
             Whether to use Karis average on first downsample to prevent fireflies.
@@ -310,8 +310,6 @@ class PhysicalBasedBloomPass(EffectPass):
         self._downsample_pass._uniform_data["use_karis_average"] = (
             1 if self._use_karis_average else 0
         )
-
-        # target_view = self._mip_textures[0].create_view()
 
         target_view = self._bloom_texture.create_view(
             base_mip_level=0,
@@ -413,4 +411,4 @@ class PhysicalBasedBloomPass(EffectPass):
         )
 
     def __repr__(self):
-        return f"<{self.__class__.__name__} strength={self.bloom_strength} mips={self.mip_levels} at {hex(id(self))}>"
+        return f"<{self.__class__.__name__} strength={self.bloom_strength} filter_radius={self.filter_radius} at {hex(id(self))}>"
