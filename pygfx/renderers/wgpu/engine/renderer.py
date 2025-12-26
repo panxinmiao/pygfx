@@ -263,6 +263,7 @@ class WgpuRenderer(RootEventHandler, Renderer):
         gamma_correction=1.0,
         output_color_space=ColorSpace.srgb,
         ppaa="default",
+        hdr=False,
         **kwargs,
     ):
         blend_mode = kwargs.pop("blend_mode", None)
@@ -309,7 +310,7 @@ class WgpuRenderer(RootEventHandler, Renderer):
             self._target._wgpu_usage |= wgpu.TextureUsage.RENDER_ATTACHMENT
             self._target._wgpu_usage |= wgpu.TextureUsage.TEXTURE_BINDING
 
-        self._blender = Blender()
+        self._blender = Blender(enable_hdr=hdr)
         self._effect_passes = ()
         self.ppaa = ppaa
         self._name_of_texture_with_effects = (
@@ -328,6 +329,9 @@ class WgpuRenderer(RootEventHandler, Renderer):
             size=16,
             usage=wgpu.BufferUsage.COPY_DST | wgpu.BufferUsage.MAP_READ,
         )
+
+        self._scissor_rect = None
+        self._auto_clear_output = True
 
         # Init fps measurements
         self._show_fps = bool(show_fps)
@@ -413,6 +417,22 @@ class WgpuRenderer(RootEventHandler, Renderer):
     def target(self):
         """The render target. Can be a canvas, texture or texture view."""
         return self._target
+
+    @property
+    def auto_clear_output(self) -> bool:
+        """Whether to auto-clear the final output texture (render target) when rendering.
+
+        If True, the output texture is cleared before rendering a new frame.
+        If False, the previous contents of the output texture are preserved.
+        """
+        return self._auto_clear_output
+
+    @auto_clear_output.setter
+    def auto_clear_output(self, value: bool):
+        self._auto_clear_output = bool(value)
+        self._output_pass.load_op = (
+            wgpu.LoadOp.clear if self._auto_clear_output else wgpu.LoadOp.load
+        )
 
     @property
     def pixel_scale(self) -> float:
@@ -602,6 +622,32 @@ class WgpuRenderer(RootEventHandler, Renderer):
         return (0, 0, *self.logical_size)
 
     @property
+    def scissor_rect(self):
+        """The scissor rectangle for the renderer area."""
+        return self._scissor_rect
+
+    @scissor_rect.setter
+    def scissor_rect(self, scissor_rect):
+        if scissor_rect is not None:
+            if len(scissor_rect) != 4:
+                raise ValueError(
+                    "The scissor_rect must be None or 4 elements (x, y, w, h)."
+                )
+
+            pixel_ratio = self.physical_size[1] / self.logical_size[1]
+            scaled_scissor_rect = [int(i * pixel_ratio + 0.4999) for i in scissor_rect]
+        else:
+            scaled_scissor_rect = None
+
+        self._scissor_rect = scissor_rect
+        self._gfx_scaled_scissor_rect = scaled_scissor_rect
+
+        self._output_pass._set_scissor_rect(scissor_rect)
+
+        for effect_pass in self._effect_passes:
+            effect_pass._set_scissor_rect(scaled_scissor_rect)
+
+    @property
     def logical_size(self):
         """The size of the render target in logical pixels."""
         target = self._target
@@ -788,6 +834,11 @@ class WgpuRenderer(RootEventHandler, Renderer):
                 "The viewport rect must be None or 4 elements (x, y, w, h)."
             )
 
+        if self._scissor_rect is not None:
+            self._gfx_scaled_scissor_rect = [
+                int(i * pixel_ratio + 0.4999) for i in self._scissor_rect
+            ]
+
         # Apply the camera's native size (do this before we change scene_lsize based on view_offset)
         camera.set_view_size(*scene_lsize)
 
@@ -922,6 +973,13 @@ class WgpuRenderer(RootEventHandler, Renderer):
             for step in self._effect_passes:
                 if not step.enabled:
                     continue
+                if step.REQUIRES_HDR and not self._blender._enable_hdr:
+                    logger.warning(
+                        f"Effect pass {step.__class__.__name__} requires HDR rendering, but the renderer is not configured for HDR. Skipping this effect step."
+                    )
+                    step.enabled = False
+                    continue
+
                 color_tex = self._blender.get_texture_view(
                     src_name, src_usage, create_if_not_exist=True
                 )
@@ -1122,6 +1180,9 @@ class WgpuRenderer(RootEventHandler, Renderer):
             occlusion_query_set=None,
         )
         render_pass.set_viewport(*physical_viewport)
+
+        if self._scissor_rect is not None:
+            render_pass.set_scissor_rect(*self._gfx_scaled_scissor_rect)
 
         # Draw each wobject
         for item in renderable_items:

@@ -41,7 +41,7 @@ from imgui_bundle import imgui
 canvas = RenderCanvas(
     size=(1280, 720), title="bloom_effect", update_mode="fastest", vsync=False
 )
-renderer = gfx.renderers.WgpuRenderer(canvas)
+renderer = gfx.renderers.WgpuRenderer(canvas, hdr=True)
 scene = gfx.Scene()
 
 # Read cube image and turn it into a 3D image (a 4d array)

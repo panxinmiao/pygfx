@@ -39,7 +39,7 @@ canvas = RenderCanvas(
 )
 
 
-renderer = gfx.WgpuRenderer(canvas)
+renderer = gfx.WgpuRenderer(canvas, hdr=True)
 glfw.maximize_window(canvas._window)
 glfw.set_window_aspect_ratio(canvas._window, 16, 9)
 
@@ -47,7 +47,7 @@ scene = gfx.Scene()
 
 # Create bloom effect pass using the new API
 bloom_pass = gfx.renderers.wgpu.PhysicalBasedBloomPass(
-    bloom_strength=0.1,
+    bloom_strength=0.05,
     max_mip_levels=6,
     filter_radius=0.003,
     use_karis_average=False,
@@ -62,7 +62,7 @@ renderer.effect_passes = [bloom_pass, tone_mapping_pass]
 ambient_light = gfx.AmbientLight(intensity=0.3)
 scene.add(ambient_light)
 directional_light = gfx.DirectionalLight(intensity=2.5)
-directional_light.local.position = (0.5, 0, 0.866)
+directional_light.local.position = (1, 1, 1)
 scene.add(directional_light)
 
 camera = gfx.PerspectiveCamera(45, 1280 / 720)
@@ -319,39 +319,47 @@ def draw_imgui():
                 )
             imgui.end_group()
 
-            imgui.separator()
+            if renderer._blender._enable_hdr:
+                imgui.separator()
+                imgui.begin_group()
 
-            imgui.begin_group()
-            _, tone_mapping_pass.enabled = imgui.checkbox(
-                "Tone Mapping", tone_mapping_pass.enabled
-            )
+                _, tone_mapping_pass.enabled = imgui.checkbox(
+                    "Tone Mapping", tone_mapping_pass.enabled
+                )
 
-            if tone_mapping_pass.enabled:
-                changed, tone_mapping_pass.exposure = imgui.slider_float(
-                    "Exposure", tone_mapping_pass.exposure, 0.1, 5.0
-                )
-                changed, v = imgui.combo(
-                    "Tone Mapping Type",
-                    [
-                        gfx.enums.ToneMappingMode.linear,
-                        gfx.enums.ToneMappingMode.neutral,
-                        gfx.enums.ToneMappingMode.reinhard,
-                        gfx.enums.ToneMappingMode.cineon,
-                        gfx.enums.ToneMappingMode.aces_filmic,
-                        gfx.enums.ToneMappingMode.agx,
-                    ].index(tone_mapping_pass.mode),
-                    ["Linear", "Neutral", "Reinhard", "Cineon", "ACESFilmic", "AgX"],
-                )
-                if changed:
-                    tone_mapping_pass.mode = [
-                        gfx.enums.ToneMappingMode.linear,
-                        gfx.enums.ToneMappingMode.neutral,
-                        gfx.enums.ToneMappingMode.reinhard,
-                        gfx.enums.ToneMappingMode.cineon,
-                        gfx.enums.ToneMappingMode.aces_filmic,
-                        gfx.enums.ToneMappingMode.agx,
-                    ][v]
-            imgui.end_group()
+                if tone_mapping_pass.enabled:
+                    changed, tone_mapping_pass.exposure = imgui.slider_float(
+                        "Exposure", tone_mapping_pass.exposure, 0.1, 5.0
+                    )
+                    changed, v = imgui.combo(
+                        "Tone Mapping Type",
+                        [
+                            gfx.enums.ToneMappingMode.linear,
+                            gfx.enums.ToneMappingMode.neutral,
+                            gfx.enums.ToneMappingMode.reinhard,
+                            gfx.enums.ToneMappingMode.cineon,
+                            gfx.enums.ToneMappingMode.aces_filmic,
+                            gfx.enums.ToneMappingMode.agx,
+                        ].index(tone_mapping_pass.mode),
+                        [
+                            "Linear",
+                            "Neutral",
+                            "Reinhard",
+                            "Cineon",
+                            "ACESFilmic",
+                            "AgX",
+                        ],
+                    )
+                    if changed:
+                        tone_mapping_pass.mode = [
+                            gfx.enums.ToneMappingMode.linear,
+                            gfx.enums.ToneMappingMode.neutral,
+                            gfx.enums.ToneMappingMode.reinhard,
+                            gfx.enums.ToneMappingMode.cineon,
+                            gfx.enums.ToneMappingMode.aces_filmic,
+                            gfx.enums.ToneMappingMode.agx,
+                        ][v]
+                imgui.end_group()
 
         if imgui.collapsing_header("Visibility", imgui.TreeNodeFlags_.default_open):
             _, background.visible = imgui.checkbox(

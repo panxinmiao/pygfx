@@ -26,7 +26,7 @@ from imgui_bundle import imgui
 
 # Create canvas and renderer
 canvas = RenderCanvas(title="Physical Based Bloom Demo", size=(1280, 720))
-renderer = gfx.renderers.WgpuRenderer(canvas)
+renderer = gfx.renderers.WgpuRenderer(canvas, hdr=True)
 
 # Create HDR scene with bright objects
 scene = gfx.Scene()

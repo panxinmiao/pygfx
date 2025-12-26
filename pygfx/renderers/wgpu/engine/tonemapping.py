@@ -9,6 +9,8 @@ class ToneMappingPass(EffectPass):
     compressing the dynamic range of the image to displayable values.
     """
 
+    REQUIRES_HDR = True
+
     uniform_type = dict(
         EffectPass.uniform_type,
         exposure="f4",

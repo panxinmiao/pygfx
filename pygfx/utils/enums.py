@@ -20,6 +20,7 @@ The enums used in pygfx. The enums are all available from the root ``pygfx`` nam
     TextAnchor
     VisibleSide
     PixelFilter
+    ToneMappingMode
 
 """
 
@@ -41,6 +42,7 @@ __all__ = [
     "SizeMode",
     "TextAlign",
     "TextAnchor",
+    "ToneMappingMode",
     "VisibleSide",
 ]
 
