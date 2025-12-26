@@ -268,6 +268,10 @@ class WgpuRenderer(RootEventHandler, Renderer):
         if pixel_scale is not None:
             self.pixel_scale = pixel_scale
 
+        self._scissor_rect = None
+        self._gfx_scaled_scissor_rect = None
+        self._auto_clear_output = True
+
         # Make sure we have a shared object (the first renderer creates the instance)
         self._shared = get_shared()
         self._device = self._shared.device
@@ -322,9 +326,6 @@ class WgpuRenderer(RootEventHandler, Renderer):
             size=16,
             usage=wgpu.BufferUsage.COPY_DST | wgpu.BufferUsage.MAP_READ,
         )
-
-        self._scissor_rect = None
-        self._auto_clear_output = True
 
         # Init fps measurements
         self._show_fps = bool(show_fps)
@@ -541,17 +542,19 @@ class WgpuRenderer(RootEventHandler, Renderer):
                 raise ValueError(
                     "The scissor_rect must be None or 4 elements (x, y, w, h)."
                 )
+
+            pixel_ratio = self.physical_size[1] / self.logical_size[1]
+            scaled_scissor_rect = [int(i * pixel_ratio + 0.4999) for i in scissor_rect]
+        else:
+            scaled_scissor_rect = None
+
         self._scissor_rect = scissor_rect
+        self._gfx_scaled_scissor_rect = scaled_scissor_rect
+
         self._output_pass._set_scissor_rect(scissor_rect)
 
-        if self._scissor_rect is not None:
-            pixel_ratio = self.physical_size[1] / self.logical_size[1]
-            self._gfx_scaled_scissor_rect = [
-                int(i * pixel_ratio + 0.4999) for i in self._scissor_rect
-            ]
-
-            for effect_pass in self._effect_passes:
-                effect_pass._set_scissor_rect(self._gfx_scaled_scissor_rect)
+        for effect_pass in self._effect_passes:
+            effect_pass._set_scissor_rect(scaled_scissor_rect)
 
     @property
     def logical_size(self):
@@ -635,6 +638,7 @@ class WgpuRenderer(RootEventHandler, Renderer):
                 raise TypeError(
                     f"A renderer effect-pass step must be an instance of EffectPass, not {step!r}"
                 )
+            step._set_scissor_rect(self._gfx_scaled_scissor_rect)
         self._effect_passes = effect_passes
 
     def clear(self, *, all=False, color=False, depth=False, weights=False):
