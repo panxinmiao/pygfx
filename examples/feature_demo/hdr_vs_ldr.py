@@ -36,7 +36,7 @@ from rendercanvas.auto import RenderCanvas, loop
 import pygfx as gfx
 
 # Init
-canvas = RenderCanvas(size=(800, 480), title="gfx_pbr")
+canvas = RenderCanvas(size=(800, 480), title="HDR vs LDR")
 
 hdr_renderer = gfx.WgpuRenderer(canvas, hdr=True)
 ldr_renderer = gfx.WgpuRenderer(canvas, hdr=False)
