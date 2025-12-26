@@ -543,18 +543,36 @@ class WgpuRenderer(RootEventHandler, Renderer):
                     "The scissor_rect must be None or 4 elements (x, y, w, h)."
                 )
 
-            pixel_ratio = self.physical_size[1] / self.logical_size[1]
-            scaled_scissor_rect = [int(i * pixel_ratio + 0.4999) for i in scissor_rect]
+            # pixel_ratio = self.physical_size[1] / self.logical_size[1]
+
+            target = self._target
+            if isinstance(self._target, BaseRenderCanvas):
+                target_physical_size = self._target.get_physical_size()
+            else:
+                target_physical_size = target.size[:2]
+
+            # Compute output scissor rect
+            output_pixel_ratio = target_physical_size[1] / self.logical_size[1]
+            output_scissor_rect = [
+                int(i * output_pixel_ratio + 0.4999) for i in scissor_rect
+            ]
+
+            # Compute internal scissor rect
+            pixel_ratio = output_pixel_ratio * self.pixel_scale
+            internal_scissor_rect = [
+                int(i * pixel_ratio + 0.4999) for i in scissor_rect
+            ]
         else:
-            scaled_scissor_rect = None
+            output_scissor_rect = None
+            internal_scissor_rect = None
 
         self._scissor_rect = scissor_rect
-        self._gfx_scaled_scissor_rect = scaled_scissor_rect
+        self._gfx_scaled_scissor_rect = internal_scissor_rect
 
-        self._output_pass._set_scissor_rect(scissor_rect)
+        self._output_pass._set_scissor_rect(output_scissor_rect)
 
         for effect_pass in self._effect_passes:
-            effect_pass._set_scissor_rect(scaled_scissor_rect)
+            effect_pass._set_scissor_rect(internal_scissor_rect)
 
     @property
     def logical_size(self):
@@ -964,7 +982,7 @@ class WgpuRenderer(RootEventHandler, Renderer):
 
             render_pass.set_viewport(*physical_viewport)
 
-            if self._scissor_rect is not None:
+            if self._gfx_scaled_scissor_rect is not None:
                 render_pass.set_scissor_rect(*self._gfx_scaled_scissor_rect)
 
             for render_pipeline_container in render_pipeline_containers:
