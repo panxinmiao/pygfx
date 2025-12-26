@@ -338,7 +338,9 @@ class WgpuRenderer(RootEventHandler, Renderer):
             self.enable_events()
 
     def _get_preferred_target_format(self):
-        capabilities = self._canvas_context._wgpu_context._get_capabilities(self._shared.adapter)
+        capabilities = self._canvas_context._wgpu_context._get_capabilities(
+            self._shared.adapter
+        )
         available_formats = capabilities.get("formats", [])
 
         # get the preferred format (without sRGB OETF)

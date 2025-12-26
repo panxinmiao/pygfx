@@ -302,9 +302,9 @@ def draw_imgui():
 
         if imgui.collapsing_header("Effects", imgui.TreeNodeFlags_.default_open):
             imgui.begin_group()
-            _, bloom_pass.enable = imgui.checkbox("Bloom", bloom_pass.enable)
+            _, bloom_pass.enabled = imgui.checkbox("Bloom", bloom_pass.enabled)
 
-            if bloom_pass.enable:
+            if bloom_pass.enabled:
                 changed, bloom_pass.bloom_strength = imgui.slider_float(
                     "Bloom Strength", bloom_pass.bloom_strength, 0.0, 1.0
                 )
@@ -322,11 +322,11 @@ def draw_imgui():
             imgui.separator()
 
             imgui.begin_group()
-            _, tone_mapping_pass.enable = imgui.checkbox(
-                "Tone Mapping", tone_mapping_pass.enable
+            _, tone_mapping_pass.enabled = imgui.checkbox(
+                "Tone Mapping", tone_mapping_pass.enabled
             )
 
-            if tone_mapping_pass.enable:
+            if tone_mapping_pass.enabled:
                 changed, tone_mapping_pass.exposure = imgui.slider_float(
                     "Exposure", tone_mapping_pass.exposure, 0.1, 5.0
                 )
